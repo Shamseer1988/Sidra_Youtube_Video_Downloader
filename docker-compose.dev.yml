@@ -1,0 +1,71 @@
+# ============================================
+# Sidra Video Downloader - Development Compose
+# ============================================
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Overrides for local development:
+# - Mounts source code for hot reload
+# - Exposes all service ports
+# - Enables Flask debug mode
+# - No nginx reverse proxy
+
+services:
+  # ---- Next.js Frontend (Dev Mode) ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: sidra-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+    command: npm run dev
+
+  # ---- Flask Backend (Debug Mode) ----
+  backend:
+    container_name: sidra-backend-dev
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - /app/venv
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    command: flask run --debug --host=0.0.0.0 --port=5000
+
+  # ---- Celery Worker (Dev) ----
+  worker:
+    container_name: sidra-worker-dev
+    volumes:
+      - ./backend:/app
+      - /app/venv
+    environment:
+      - FLASK_ENV=development
+    command: >
+      celery -A celery_worker.celery_app worker
+      --loglevel=debug
+      --concurrency=1
+
+  # ---- PostgreSQL (Exposed) ----
+  db:
+    container_name: sidra-db-dev
+    ports:
+      - "5432:5432"
+
+  # ---- Redis (Exposed) ----
+  redis:
+    container_name: sidra-redis-dev
+    ports:
+      - "6379:6379"
+
+  # ---- No Nginx in Dev ----
+  nginx:
+    profiles:
+      - disabled

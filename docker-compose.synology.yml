@@ -1,0 +1,176 @@
+# ==================================================
+# Sidra Video Downloader - Synology NAS Compose
+# ==================================================
+# Optimized for Synology NAS with Container Manager
+#
+# Volume paths:
+#   /volume1/docker/sidra-downloader/  → project root
+#   /volume1/video                     → Synology Video Station folder
+#   /volume1/music                     → Synology Audio Station folder
+#
+# Usage:
+#   cd /volume1/docker/sidra-downloader
+#   docker compose -f docker-compose.synology.yml up -d
+
+services:
+  # ---- Nginx Reverse Proxy ----
+  nginx:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.nginx
+    container_name: sidra-nginx
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
+    networks:
+      - sidra_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  # ---- Next.js Frontend ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sidra-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    networks:
+      - sidra_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---- Flask Backend API ----
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sidra-backend
+    environment:
+      - FLASK_APP=${FLASK_APP:-wsgi.py}
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://sidra:sidra_password@db:5432/sidra_downloader}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      - DOWNLOAD_VIDEO_PATH=/downloads/videos
+      - DOWNLOAD_AUDIO_PATH=/downloads/audios
+      - MEDIA_VIDEO_PATH=/media/video
+      - MEDIA_AUDIO_PATH=/media/music
+    volumes:
+      # Download directories on NAS
+      - /volume1/docker/sidra-downloader/downloads/videos:/downloads/videos
+      - /volume1/docker/sidra-downloader/downloads/audios:/downloads/audios
+      # Synology shared media folders (read-only for browsing)
+      - /volume1/video:/media/video:ro
+      - /volume1/music:/media/music:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sidra_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---- Celery Worker ----
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sidra-worker
+    command: celery -A celery_worker.celery worker --loglevel=info --concurrency=1
+    environment:
+      - FLASK_APP=${FLASK_APP:-wsgi.py}
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://sidra:sidra_password@db:5432/sidra_downloader}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      - DOWNLOAD_VIDEO_PATH=/downloads/videos
+      - DOWNLOAD_AUDIO_PATH=/downloads/audios
+    volumes:
+      # Download directories on NAS
+      - /volume1/docker/sidra-downloader/downloads/videos:/downloads/videos
+      - /volume1/docker/sidra-downloader/downloads/audios:/downloads/audios
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sidra_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  # ---- PostgreSQL Database ----
+  db:
+    image: postgres:16-alpine
+    container_name: sidra-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-sidra}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-sidra_password}
+      - POSTGRES_DB=${POSTGRES_DB:-sidra_downloader}
+    volumes:
+      - /volume1/docker/sidra-downloader/postgres-data:/var/lib/postgresql/data
+    networks:
+      - sidra_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sidra} -d ${POSTGRES_DB:-sidra_downloader}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---- Redis ----
+  redis:
+    image: redis:7-alpine
+    container_name: sidra-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - /volume1/docker/sidra-downloader/redis-data:/data
+    networks:
+      - sidra_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+# ---- Networks ----
+networks:
+  sidra_network:
+    name: sidra_network
+    driver: bridge

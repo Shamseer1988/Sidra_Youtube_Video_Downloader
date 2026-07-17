@@ -1,0 +1,98 @@
+# ===========================
+# Sidra Video Downloader
+# .gitignore
+# ===========================
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+.eggs/
+venv/
+env/
+.venv/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ----- Node.js -----
+node_modules/
+.next/
+out/
+.nuxt/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json.bak
+
+# ----- Environment -----
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ----- IDE / Editors -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ----- OS Files -----
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ----- Docker -----
+docker-compose.override.yml
+
+# ----- Logs -----
+*.log
+logs/
+
+# ----- Database -----
+*.sql
+!scripts/setup-db.sh
+!scripts/setup-db.bat
+
+# ----- Backups -----
+backups/
+
+# ----- Downloads & Media -----
+downloads/
+media/
+
+# ----- Build artifacts -----
+*.tar.gz
+*.zip
+
+# ----- Testing -----
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ----- Misc -----
+*.bak
+*.tmp
+*.temp
+.cache/
