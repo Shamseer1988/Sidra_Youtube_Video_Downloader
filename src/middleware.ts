@@ -37,9 +37,10 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Protect all app pages. API routes do their own auth checks.
-  // Exclude Next internals, static assets, and the login endpoint family.
+  // Exclude Next internals, PWA assets (manifest/sw/icons must be public
+  // for install to work), and the login page itself.
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|login).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons/|login).*)",
     "/login",
   ],
 };

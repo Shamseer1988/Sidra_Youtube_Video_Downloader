@@ -7,7 +7,7 @@ import { apiSend } from "@/lib/client-api";
 import type { CurrentUser } from "@/lib/types";
 
 const titles: Record<string, string> = {
-  "/": "Dashboard",
+  "/": "Home",
   "/videos": "Videos",
   "/music": "Music",
   "/downloads": "Downloads",
@@ -16,6 +16,8 @@ const titles: Record<string, string> = {
   "/playlists": "Playlists",
   "/users": "User Management",
   "/settings": "Settings",
+  "/my": "My Stuff",
+  "/watch": "Now Playing",
 };
 
 export function Header({ user }: { user: CurrentUser }) {

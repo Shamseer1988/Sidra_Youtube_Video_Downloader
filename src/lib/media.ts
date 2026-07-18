@@ -4,13 +4,9 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
-import {
-  config,
-  allAllowedDirs,
-  VIDEO_EXTS,
-  AUDIO_EXTS,
-} from "./config";
+import { config, VIDEO_EXTS, AUDIO_EXTS } from "./config";
 import { prisma } from "./prisma";
+import { allowedDirs, scanTargets as folderScanTargets } from "./folders";
 
 // ── Path safety ─────────────────────────────────────────────────────
 
@@ -24,9 +20,10 @@ export function isInsideAllowed(target: string, dirs: string[]): boolean {
 }
 
 /** Resolve a library item's path, verifying it is still allowed & exists. */
-export function verifyPath(p: string): string | null {
+export async function verifyPath(p: string): Promise<string | null> {
   if (!p) return null;
-  if (!isInsideAllowed(p, allAllowedDirs())) return null;
+  const dirs = await allowedDirs();
+  if (!isInsideAllowed(p, dirs)) return null;
   try {
     if (!fs.statSync(p).isFile()) return null;
   } catch {
@@ -113,13 +110,13 @@ interface ScanTarget {
   source: "download" | "nas";
 }
 
-function scanTargets(): ScanTarget[] {
-  const t: ScanTarget[] = [];
-  if (config.downloadVideoPath) t.push({ dir: config.downloadVideoPath, type: "video", source: "download" });
-  if (config.downloadAudioPath) t.push({ dir: config.downloadAudioPath, type: "audio", source: "download" });
-  for (const d of config.mediaVideoPaths) t.push({ dir: d, type: "video", source: "nas" });
-  for (const d of config.mediaAudioPaths) t.push({ dir: d, type: "audio", source: "nas" });
-  return t;
+async function scanTargets(): Promise<ScanTarget[]> {
+  const rows = await folderScanTargets();
+  return rows.map((r) => ({
+    dir: r.dir,
+    type: r.kind,
+    source: r.role === "download" ? "download" : "nas",
+  }));
 }
 
 async function* walk(dir: string): AsyncGenerator<string> {
@@ -154,7 +151,7 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
 
   try {
     const seen = new Set<string>();
-    for (const target of scanTargets()) {
+    for (const target of await scanTargets()) {
       for await (const file of walk(target.dir)) {
         const ext = path.extname(file).toLowerCase();
         const valid = target.type === "video" ? VIDEO_EXTS.has(ext) : AUDIO_EXTS.has(ext);

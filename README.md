@@ -18,9 +18,11 @@
 - **Download videos & audio** from YouTube, Vimeo, SoundCloud, and [hundreds of sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) via yt-dlp — pick quality, or extract MP3.
 - **Live download progress** with an in-process queue (no external broker).
 - **Stream everything in the browser** — downloaded files *and* your existing NAS media, with seek/range support.
-- **Jellyfin-style dashboard** — Continue Watching, Recently Downloaded, Recently Added, activity chart.
+- **Netflix/Prime-style UI** — cinematic hero banner, horizontal media rows, Continue Watching, dark theme, fully self-contained (no external fonts/CDNs).
+- **Media folders managed from the UI** — add video/music library folders and download folders from Settings with a built-in server folder browser. No env editing needed.
 - **Library extras** — Favorites, Watch Later, Likes, Playlists, resume-where-you-left-off.
-- **Multi-user** with login, sessions, and an admin area to manage accounts.
+- **Multi-user with privileges** — admin/user roles plus per-user permissions (can download, can delete media, active/disabled).
+- **Mobile-first + PWA** — responsive layout with a Prime-style bottom tab bar on phones; installable to the home screen (manifest + service worker).
 - **One Docker image** for local use and Synology NAS.
 
 ---

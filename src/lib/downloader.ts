@@ -6,6 +6,7 @@ import path from "node:path";
 import { config } from "./config";
 import { prisma } from "./prisma";
 import { registerDownloadedFile, ensureThumbnail } from "./media";
+import { downloadDir } from "./folders";
 
 // ── Platform detection ──────────────────────────────────────────────
 
@@ -191,7 +192,7 @@ class DownloadQueue {
     const dl = await prisma.download.findUnique({ where: { id } });
     if (!dl) return;
 
-    const outDir = dl.mediaType === "audio" ? config.downloadAudioPath : config.downloadVideoPath;
+    const outDir = await downloadDir(dl.mediaType === "audio" ? "audio" : "video");
     await fsp.mkdir(outDir, { recursive: true });
 
     const outtmpl = path.join(outDir, "%(title).200B [%(id)s].%(ext)s");

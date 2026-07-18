@@ -32,9 +32,16 @@ export const DELETE = withAuth(async (_req, user, ctx) => {
   const it = await prisma.libraryItem.findUnique({ where: { id } });
   if (!it) return fail("Not found.", 404);
 
-  const canDeleteFile = it.source === "download" && (user.role === "admin" || it.addedById === user.id);
+  // Privileges: admins can delete anything; owners can delete their own
+  // downloads; users with the canDelete privilege can delete any download.
+  const canDeleteFile =
+    it.source === "download" &&
+    (user.role === "admin" || it.addedById === user.id || user.canDelete);
+  if (it.source === "nas" && user.role !== "admin" && !user.canDelete) {
+    return fail("You don't have permission to remove library items.", 403);
+  }
   if (canDeleteFile) {
-    const safe = verifyPath(it.path);
+    const safe = await verifyPath(it.path);
     if (safe) await fs.unlink(safe).catch(() => {});
   }
   await prisma.libraryItem.delete({ where: { id } });

@@ -10,5 +10,7 @@ export async function GET() {
     email: user.email,
     role: user.role,
     avatarColor: user.avatarColor,
+    canDownload: user.role === "admin" || user.canDownload,
+    canDelete: user.role === "admin" || user.canDelete,
   });
 }

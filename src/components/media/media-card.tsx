@@ -62,8 +62,8 @@ export function MediaCard({
       <Link href={`/watch/${item.id}`} className="block">
         <div
           className={cn(
-            "relative aspect-video rounded-xl overflow-hidden bg-navy-800 border border-slate-700/30",
-            "transition-all duration-300 group-hover:border-accent-blue/40 group-hover:shadow-lg group-hover:shadow-accent-blue/10",
+            "relative aspect-video rounded-lg overflow-hidden bg-navy-800 border border-slate-700/25",
+            "transition-all duration-300 group-hover:scale-[1.03] group-hover:border-slate-500/50 group-hover:shadow-xl group-hover:shadow-black/50 group-hover:z-10",
           )}
         >
           {isAudio ? (

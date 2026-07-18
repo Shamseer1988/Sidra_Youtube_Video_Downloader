@@ -10,6 +10,8 @@ function publicUser(u: any) {
     role: u.role,
     isActive: u.isActive,
     avatarColor: u.avatarColor,
+    canDownload: u.canDownload,
+    canDelete: u.canDelete,
     createdAt: u.createdAt,
   };
 }

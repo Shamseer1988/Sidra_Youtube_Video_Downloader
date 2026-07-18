@@ -40,16 +40,9 @@ export const config = {
   authSecret: process.env.AUTH_SECRET || "insecure-dev-secret-change-me",
 } as const;
 
-/** All directories the app is allowed to read/stream from. */
-export function allowedVideoDirs(): string[] {
-  return [config.downloadVideoPath, ...config.mediaVideoPaths].filter(Boolean);
-}
-export function allowedAudioDirs(): string[] {
-  return [config.downloadAudioPath, ...config.mediaAudioPaths].filter(Boolean);
-}
-export function allAllowedDirs(): string[] {
-  return [...allowedVideoDirs(), ...allowedAudioDirs()];
-}
+// NOTE: media folders are managed in the database (MediaFolder model,
+// Settings UI). The env-derived paths above act only as first-run
+// defaults — see lib/folders.ts.
 
 export const VIDEO_EXTS = new Set([
   ".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v", ".flv", ".wmv", ".mpg", ".mpeg", ".ts",

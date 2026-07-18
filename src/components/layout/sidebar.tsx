@@ -12,7 +12,8 @@ import {
   Clock,
   ListVideo,
   Users,
-  Waves,
+  Settings,
+  Play,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -29,6 +30,7 @@ const libraryNav = [
   { href: "/favorites", label: "Favorites", icon: Heart },
   { href: "/watch-later", label: "Watch Later", icon: Clock },
   { href: "/playlists", label: "Playlists", icon: ListVideo },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
@@ -73,13 +75,14 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
       )}
     >
       <div className="flex items-center gap-3 px-4 h-16 border-b border-slate-700/20">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-accent-blue to-accent-purple flex-shrink-0">
-          <Waves className="h-5 w-5 text-white" />
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-accent-blue via-accent-purple to-accent-red flex-shrink-0 shadow-lg shadow-accent-blue/20">
+          <Play className="h-5 w-5 text-white fill-white ml-0.5" />
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <h1 className="text-lg font-bold gradient-text whitespace-nowrap">Sidra</h1>
-            <p className="text-[10px] text-slate-500 -mt-0.5 whitespace-nowrap">Media Hub</p>
+            <h1 className="text-lg font-extrabold whitespace-nowrap text-white">
+              Sidra<span className="gradient-text">Media</span>
+            </h1>
           </div>
         )}
       </div>

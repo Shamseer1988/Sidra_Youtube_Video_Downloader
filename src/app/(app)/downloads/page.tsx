@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Link2, Search, Video, Music, Loader2, Play, RotateCw, Trash2, X,
-  CheckCircle2, AlertCircle, DownloadCloud,
+  Link2, Search, Video, Music, Play, RotateCw, Trash2, X,
+  DownloadCloud, ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiGet, apiSend } from "@/lib/client-api";
 import { cn, formatBytes, formatDuration } from "@/lib/utils";
 import { useToast } from "@/components/providers/toast-provider";
+import { useUser } from "@/components/providers/user-provider";
 import type { DownloadJob } from "@/lib/types";
 
 interface Info {
@@ -26,7 +28,11 @@ interface Info {
 export default function DownloadsPage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const [url, setUrl] = useState("");
+  const user = useUser();
+  const params = useSearchParams();
+  // Prefill from ?url= (e.g. arriving from the dashboard quick-download bar)
+  const [url, setUrl] = useState(() => params.get("url") ?? "");
+  const autoAnalyzed = useRef(false);
   const [mediaType, setMediaType] = useState<"video" | "audio">("video");
   const [formatId, setFormatId] = useState<string>("best");
   const [info, setInfo] = useState<Info | null>(null);
@@ -57,6 +63,15 @@ export default function DownloadsPage() {
       setAnalyzing(false);
     }
   }
+
+  // Auto-analyze when arriving with a prefilled URL from the dashboard.
+  useEffect(() => {
+    if (url.trim() && !autoAnalyzed.current) {
+      autoAnalyzed.current = true;
+      analyze();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function startDownload() {
     if (!url.trim()) return;
@@ -92,8 +107,17 @@ export default function DownloadsPage() {
   const videoFormats = info?.formats.filter((f) => f.resolution && f.resolution !== "audio only") ?? [];
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Permission notice */}
+      {!user.canDownload && (
+        <div className="glass-card p-4 flex items-start gap-3 text-sm text-amber-300/90">
+          <ShieldAlert className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          Your account doesn&apos;t have download permission. Ask an administrator to enable it.
+        </div>
+      )}
+
       {/* Add panel */}
+      {user.canDownload && (
       <div className="glass-card p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-accent-blue to-accent-emerald shadow-lg">
@@ -193,6 +217,7 @@ export default function DownloadsPage() {
           </Button>
         </div>
       </div>
+      )}
 
       {/* Queue */}
       <div>

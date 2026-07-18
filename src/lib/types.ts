@@ -6,6 +6,16 @@ export interface CurrentUser {
   email: string;
   role: "admin" | "user";
   avatarColor: string;
+  canDownload: boolean;
+  canDelete: boolean;
+}
+
+export interface MediaFolder {
+  id: string;
+  path: string;
+  kind: "video" | "audio";
+  role: "library" | "download";
+  exists: boolean;
 }
 
 export interface MediaState {

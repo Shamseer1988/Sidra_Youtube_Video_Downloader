@@ -16,7 +16,7 @@ export async function GET(
   const item = await prisma.libraryItem.findUnique({ where: { id } });
   if (!item) return new Response("Not found", { status: 404 });
 
-  const filePath = verifyPath(item.path);
+  const filePath = await verifyPath(item.path);
   if (!filePath) return new Response("File unavailable", { status: 404 });
 
   const size = fs.statSync(filePath).size;

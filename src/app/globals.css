@@ -1,26 +1,42 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
+/* ── Sidra Media — cinema dark theme (Netflix/Prime-inspired) ─────────
+   Fully self-contained: system fonts only, no external requests. */
+
 @theme {
-  --color-navy-900: #0f172a;
-  --color-navy-800: #1e293b;
-  --color-navy-700: #334155;
-  --color-navy-600: #475569;
-  --color-accent-blue: #3b82f6;
-  --color-accent-emerald: #10b981;
+  /* Surfaces — deep neutral navy/charcoal like Prime Video */
+  --color-navy-950: #07080c;
+  --color-navy-900: #0b0d13;
+  --color-navy-800: #14171f;
+  --color-navy-700: #1e222d;
+  --color-navy-600: #2a2f3d;
+
+  /* Accents */
+  --color-accent-blue: #5b7cfa;
   --color-accent-purple: #8b5cf6;
+  --color-accent-emerald: #22c55e;
   --color-accent-amber: #f59e0b;
+  --color-accent-red: #e50914;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  --animate-fade-in: fadeIn 0.35s ease-out;
+  --animate-slide-up: slideUp 0.4s ease-out;
+  --animate-shimmer: shimmer 1.8s linear infinite;
 }
 
 :root {
-  --background: #0f172a;
-  --foreground: #e2e8f0;
+  --background: #0b0d13;
+  --foreground: #e5e7eb;
+  color-scheme: dark;
 }
 
 * {
   box-sizing: border-box;
-  padding: 0;
   margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
@@ -30,181 +46,137 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
 }
 
-/* Glass-morphism utilities */
+/* PWA standalone: respect notches */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ── Surfaces ──────────────────────────────────────────────────────── */
 .glass {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.1);
-}
-
-.glass-border {
-  border: 1px solid rgba(148, 163, 184, 0.1);
-}
-
-.glass-hover:hover {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 18, 26, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(148, 163, 184, 0.08);
 }
 
 .glass-card {
-  background: rgba(30, 41, 59, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(20, 23, 31, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(148, 163, 184, 0.08);
   border-radius: 1rem;
 }
 
-/* Gradient text */
+.glass-hover:hover {
+  background: rgba(30, 34, 45, 0.9);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+/* ── Text effects ──────────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(135deg, #5b7cfa, #a78bfa);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.gradient-text-emerald {
-  background: linear-gradient(135deg, #3b82f6, #10b981);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* ── Hero banner ───────────────────────────────────────────────────── */
+.hero-shade {
+  background: linear-gradient(
+      to top,
+      #0b0d13 0%,
+      rgba(11, 13, 19, 0.85) 22%,
+      rgba(11, 13, 19, 0.35) 55%,
+      rgba(11, 13, 19, 0.15) 100%
+    ),
+    linear-gradient(
+      to right,
+      rgba(11, 13, 19, 0.9) 0%,
+      rgba(11, 13, 19, 0.25) 55%,
+      rgba(11, 13, 19, 0) 100%
+    );
 }
 
-/* Custom scrollbar */
+/* ── Scrollbars ────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.4);
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 3px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.6);
 }
-
-/* Animation keyframes */
-@keyframes slideIn {
-  from {
-    transform: translateX(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
 }
 
+/* ── Animations ────────────────────────────────────────────────────── */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-
-@keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
 @keyframes slideUp {
-  from {
-    transform: translateY(10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-@keyframes slideDown {
-  from {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Gradient border utility */
-.gradient-border {
-  position: relative;
-}
-
-.gradient-border::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  -webkit-mask-composite: xor;
-  pointer-events: none;
-}
-
-/* Shimmer loading effect */
 .shimmer {
   background: linear-gradient(
     90deg,
-    rgba(30, 41, 59, 0) 0%,
-    rgba(51, 65, 85, 0.5) 50%,
-    rgba(30, 41, 59, 0) 100%
+    rgba(20, 23, 31, 0.6) 0%,
+    rgba(42, 47, 61, 0.7) 50%,
+    rgba(20, 23, 31, 0.6) 100%
   );
   background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
+  animation: shimmer 1.8s linear infinite;
 }
 
-/* Background gradient patterns */
-.bg-grid-pattern {
-  background-image: radial-gradient(circle, rgba(59, 130, 246, 0.08) 1px, transparent 1px);
-  background-size: 30px 30px;
+/* ── Login backdrop — cinematic poster-wall gradient ───────────────── */
+.login-backdrop {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 10%, rgba(91, 124, 250, 0.16), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 20% 80%, rgba(139, 92, 246, 0.14), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 90% 85%, rgba(229, 9, 20, 0.08), transparent 60%),
+    #07080c;
+}
+.login-grid {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 75%);
 }
 
-/* Focus styles */
+/* ── Focus styles ──────────────────────────────────────────────────── */
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }

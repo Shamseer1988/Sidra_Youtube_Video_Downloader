@@ -1,15 +1,11 @@
 import { ok, withAuth } from "@/lib/api";
-import { config } from "@/lib/config";
+import { listFolders } from "@/lib/folders";
 
-// Expose read-only runtime info (configured media folders, binary paths).
-// Folders are configured via environment/Docker volumes, not the UI, so the
-// single app stays simple and secure.
+// Runtime info for the Settings page: registered media folders and the
+// caller's role. Folders are managed via /api/folders (admin).
 export const GET = withAuth(async (_req, user) => {
   return ok({
     role: user.role,
-    downloadVideoPath: config.downloadVideoPath,
-    downloadAudioPath: config.downloadAudioPath,
-    mediaVideoPaths: config.mediaVideoPaths,
-    mediaAudioPaths: config.mediaAudioPaths,
+    folders: await listFolders(),
   });
 });

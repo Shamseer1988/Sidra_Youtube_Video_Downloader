@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import {
-  DownloadCloud, Film, Music, HardDrive, Link2, ArrowRight, Loader2, PlayCircle,
+  DownloadCloud, Film, Music, HardDrive, Link2, ArrowRight, PlayCircle, Activity,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { ActivityChart } from "@/components/dashboard/activity-chart";
+import { HeroBanner } from "@/components/media/hero-banner";
 import { MediaSection } from "@/components/media/media-section";
+import { ActivityChart } from "@/components/dashboard/activity-chart";
 import { apiGet } from "@/lib/client-api";
 import { formatBytes } from "@/lib/utils";
 import { useUser } from "@/components/providers/user-provider";
@@ -27,85 +27,116 @@ export default function DashboardPage() {
   });
 
   function go() {
-    const dest = url.trim()
-      ? `/downloads?url=${encodeURIComponent(url.trim())}`
-      : "/downloads";
-    router.push(dest);
+    router.push(url.trim() ? `/downloads?url=${encodeURIComponent(url.trim())}` : "/downloads");
   }
 
   const stats = data?.stats;
+  const heroItem =
+    data?.continueWatching?.[0] ?? data?.recentDownloaded?.[0] ?? data?.recentUploaded?.[0];
+  const heroLabel = data?.continueWatching?.length
+    ? "Continue Watching"
+    : data?.recentDownloaded?.length
+      ? "Latest Download"
+      : "From Your Library";
 
   return (
-    <div className="space-y-6">
-      {/* Greeting + quick add */}
-      <div className="glass-card p-6">
-        <h1 className="text-xl font-bold text-slate-100">
-          Welcome back, <span className="gradient-text">{user.username}</span>
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Grab something new or jump back into your library.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+    <div className="space-y-7 max-w-[1600px] mx-auto">
+      {/* Hero */}
+      {isLoading ? (
+        <div className="rounded-2xl min-h-[300px] sm:min-h-[380px] lg:min-h-[440px] shimmer" />
+      ) : heroItem ? (
+        <HeroBanner item={heroItem} label={heroLabel} />
+      ) : (
+        <div className="relative rounded-2xl overflow-hidden border border-slate-700/20 min-h-[300px] flex flex-col items-center justify-center text-center p-8 bg-gradient-to-br from-navy-800 via-navy-900 to-navy-800">
+          <PlayCircle className="h-12 w-12 text-slate-600 mb-4" />
+          <h1 className="text-xl font-bold text-slate-100">
+            Welcome, <span className="gradient-text">{user.username}</span>
+          </h1>
+          <p className="text-sm text-slate-400 mt-2 max-w-md">
+            Your library is empty. Paste a link below to download something, or add your
+            NAS media folders in Settings and run a scan.
+          </p>
+        </div>
+      )}
+
+      {/* Quick download bar */}
+      {user.canDownload && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col sm:flex-row gap-3"
+        >
           <div className="relative flex-1">
-            <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && go()}
-              placeholder="Paste a video or audio URL to download…"
-              className="w-full h-12 pl-11 pr-4 rounded-xl bg-navy-800/80 border border-slate-600/30 text-slate-200 placeholder-slate-500 focus:border-accent-blue/50 focus:outline-none"
+              placeholder="Paste a video or music URL to download…"
+              className="w-full h-12 pl-11 pr-4 rounded-xl bg-navy-800/90 border border-slate-600/30 text-[15px] text-slate-200 placeholder-slate-500 focus:border-accent-blue/60 focus:ring-2 focus:ring-accent-blue/20"
             />
           </div>
-          <Button size="lg" onClick={go} className="px-6">
+          <button
+            onClick={go}
+            className="flex items-center justify-center gap-2 h-12 px-6 rounded-xl bg-gradient-to-r from-accent-blue to-accent-purple text-white text-sm font-semibold shadow-lg shadow-accent-blue/20 hover:opacity-95 active:scale-[0.99] transition-all"
+          >
             <DownloadCloud className="h-4 w-4" /> Download <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+          </button>
+        </motion.div>
+      )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {isLoading || !stats ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="glass-card p-5 h-[132px] shimmer" />
-          ))
-        ) : (
-          <>
-            <StatCard title="Videos" value={stats.totalVideos} icon={Film} gradient="from-accent-blue to-blue-400" />
-            <StatCard title="Audio tracks" value={stats.totalAudios} icon={Music} gradient="from-accent-emerald to-emerald-400" />
-            <StatCard title="My downloads" value={stats.totalDownloads} sub={`${stats.activeDownloads} active`} icon={DownloadCloud} gradient="from-accent-purple to-purple-400" />
-            <StatCard title="Library size" value={formatBytes(stats.storageUsed)} icon={HardDrive} gradient="from-accent-amber to-amber-400" />
-          </>
-        )}
-      </div>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-accent-blue" />
-        </div>
-      ) : (
+      {/* Rows */}
+      {!isLoading && data && (
         <>
-          {data?.continueWatching?.length ? (
+          {data.continueWatching.length > 1 && (
             <MediaSection title="Continue Watching" items={data.continueWatching} />
-          ) : null}
-
-          {data?.activity?.length ? <ActivityChart data={data.activity} /> : null}
-
-          <MediaSection title="Recently Downloaded" items={data?.recentDownloaded ?? []} href="/downloads" />
-          <MediaSection title="Recently Added to Library" items={data?.recentUploaded ?? []} href="/videos" />
-
-          {!data?.recentDownloaded?.length &&
-            !data?.recentUploaded?.length &&
-            !data?.continueWatching?.length && (
-              <div className="glass-card py-16 flex flex-col items-center text-center">
-                <PlayCircle className="h-10 w-10 text-slate-600 mb-3" />
-                <p className="text-sm text-slate-400">
-                  Your library is empty. Download something, or point the app at your NAS
-                  media folders and run a scan from the Videos page.
-                </p>
-              </div>
-            )}
+          )}
+          <MediaSection title="Recently Downloaded" items={data.recentDownloaded} href="/downloads" />
+          <MediaSection title="New in Your Library" items={data.recentUploaded} href="/videos" />
         </>
       )}
+
+      {/* Stats strip */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatChip icon={Film} label="Videos" value={String(stats.totalVideos)} tone="text-accent-blue" />
+          <StatChip icon={Music} label="Audio tracks" value={String(stats.totalAudios)} tone="text-accent-emerald" />
+          <StatChip
+            icon={Activity}
+            label="My downloads"
+            value={`${stats.totalDownloads}${stats.activeDownloads ? ` · ${stats.activeDownloads} active` : ""}`}
+            tone="text-accent-purple"
+          />
+          <StatChip icon={HardDrive} label="Library size" value={formatBytes(stats.storageUsed)} tone="text-accent-amber" />
+        </div>
+      )}
+
+      {/* Activity chart */}
+      {!isLoading && data?.activity?.some((d) => d.videos + d.audios > 0) && (
+        <ActivityChart data={data.activity} />
+      )}
+    </div>
+  );
+}
+
+function StatChip({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: any;
+  label: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <div className="glass-card px-4 py-3.5 flex items-center gap-3">
+      <Icon className={`h-5 w-5 flex-shrink-0 ${tone}`} />
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-slate-100 truncate tabular-nums">{value}</p>
+        <p className="text-[11px] text-slate-500">{label}</p>
+      </div>
     </div>
   );
 }

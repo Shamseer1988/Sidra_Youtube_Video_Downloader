@@ -1,10 +1,31 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { PwaRegister } from "@/components/providers/pwa-register";
 
 export const metadata: Metadata = {
-  title: "Sidra Media",
+  title: {
+    default: "Sidra Media",
+    template: "%s · Sidra Media",
+  },
   description:
-    "Self-hosted media hub — download videos & audio from the web and stream your NAS library, Jellyfin-style.",
+    "Self-hosted media hub — download videos & music from the web and stream your NAS library.",
+  applicationName: "Sidra Media",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Sidra Media",
+  },
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0d13",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -12,10 +33,8 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body
-        className="font-sans antialiased bg-navy-900 text-slate-200 min-h-screen"
-        suppressHydrationWarning
-      >
+      <body className="antialiased min-h-screen" suppressHydrationWarning>
+        <PwaRegister />
         {children}
       </body>
     </html>

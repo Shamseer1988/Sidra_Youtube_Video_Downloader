@@ -27,6 +27,9 @@ export const GET = withAuth(async (req, user) => {
 
 // Submit a new download job.
 export const POST = withAuth(async (req, user) => {
+  if (user.role !== "admin" && !user.canDownload) {
+    return fail("You don't have permission to download. Ask an admin.", 403);
+  }
   const body = await req.json().catch(() => ({}));
   const url = String(body.url || "").trim();
   const mediaType = body.mediaType === "audio" ? "audio" : "video";

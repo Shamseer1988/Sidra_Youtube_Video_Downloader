@@ -12,6 +12,8 @@ export const PATCH = withAdmin(async (req, admin, ctx) => {
   const data: Record<string, unknown> = {};
   if (body.role === "admin" || body.role === "user") data.role = body.role;
   if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+  if (typeof body.canDownload === "boolean") data.canDownload = body.canDownload;
+  if (typeof body.canDelete === "boolean") data.canDelete = body.canDelete;
   if (body.email) data.email = String(body.email).trim().toLowerCase();
   if (body.password) data.passwordHash = await hashPassword(String(body.password));
   if (body.avatarColor) data.avatarColor = String(body.avatarColor);
