@@ -14,12 +14,13 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ENV NODE_ENV=production
 # Next telemetry off in containers
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install dependencies. The postinstall hook runs `prisma generate`, so the
-# schema must be present before `npm ci`.
+# Install ALL dependencies (incl. devDependencies like tailwind/prisma CLI —
+# they're needed to build). NODE_ENV is left unset here so `npm ci` doesn't
+# skip devDependencies; it's set to production later for runtime.
+# The postinstall hook runs `prisma generate`, so the schema must be present.
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
@@ -33,8 +34,10 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3000
 
-# Sensible in-container defaults (override via compose / env).
-ENV DATABASE_URL="file:/data/app.db" \
+# Switch to production for runtime, and set sensible in-container defaults
+# (override via compose / env).
+ENV NODE_ENV=production \
+    DATABASE_URL="file:/data/app.db" \
     THUMBNAIL_CACHE_DIR="/data/thumbnails" \
     DOWNLOAD_VIDEO_PATH="/downloads/videos" \
     DOWNLOAD_AUDIO_PATH="/downloads/audio" \
