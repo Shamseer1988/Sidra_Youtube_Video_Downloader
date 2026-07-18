@@ -1,0 +1,136 @@
+// Sidra Media — single-file SQLite database.
+// One app, one database file, no external services.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  role         String   @default("user") // "admin" | "user"
+  isActive     Boolean  @default(true)
+  avatarColor  String   @default("#3b82f6")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  downloads  Download[]
+  states     UserMediaState[]
+  playlists  Playlist[]
+}
+
+// A download job (yt-dlp). Progress is tracked in-process and mirrored here.
+model Download {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url         String
+  title       String    @default("Untitled")
+  thumbnail   String?
+  platform    String    @default("other")
+  mediaType   String    @default("video") // "video" | "audio"
+  formatId    String?
+  quality     String?
+  status      String    @default("queued") // queued | downloading | completed | failed | canceled
+  progress    Float     @default(0)
+  speed       String?
+  eta         String?
+  fileSize    BigInt?
+  duration    Float?
+  filePath    String?
+  error       String?
+  libraryId   String?   // linked LibraryItem once complete
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([userId, status])
+  @@index([createdAt])
+}
+
+// A playable file on disk — either downloaded by the app or already
+// present on the NAS media folders. Discovered by the library scanner.
+model LibraryItem {
+  id         String   @id @default(cuid())
+  path       String   @unique
+  title      String
+  type       String   // "video" | "audio"
+  source     String   @default("nas") // "download" | "nas"
+  size       BigInt   @default(0)
+  duration   Float?
+  width       Int?
+  height      Int?
+  ext        String?
+  thumbnail  String? // relative cache path if generated
+  addedById  String?  // user who downloaded it, if any
+  createdAt  DateTime @default(now())
+  mtime      DateTime // file modified time on disk
+
+  states     UserMediaState[]
+  playlistItems PlaylistItem[]
+
+  @@index([type, source])
+  @@index([mtime])
+}
+
+// Per-user interaction with a library item: favorite, watch-later, like,
+// and resume position (Jellyfin-style "continue watching").
+model UserMediaState {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       LibraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  favorite   Boolean  @default(false)
+  watchLater Boolean  @default(false)
+  liked      Boolean  @default(false)
+  position   Float    @default(0) // seconds watched
+  finished   Boolean  @default(false)
+  playedAt   DateTime?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, itemId])
+  @@index([userId, favorite])
+  @@index([userId, watchLater])
+  @@index([userId, playedAt])
+}
+
+model Playlist {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items     PlaylistItem[]
+
+  @@index([userId])
+}
+
+model PlaylistItem {
+  id         String   @id @default(cuid())
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       LibraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  order      Int      @default(0)
+  addedAt    DateTime @default(now())
+
+  @@unique([playlistId, itemId])
+  @@index([playlistId, order])
+}
+
+// Simple global key/value settings store (admin managed).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
