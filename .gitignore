@@ -1,98 +1,39 @@
-# ===========================
-# Sidra Video Downloader
-# .gitignore
-# ===========================
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
 
-# ----- Python -----
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-*.egg
-dist/
-build/
-*.whl
-.eggs/
-venv/
-env/
-.venv/
-.Python
-pip-log.txt
-pip-delete-this-directory.txt
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
 
-# ----- Node.js -----
-node_modules/
-.next/
-out/
-.nuxt/
+# production
+/dist
+
+# misc
+.DS_Store
+*.pem
+
+# debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-package-lock.json.bak
 
-# ----- Environment -----
+# local env files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*.local
 
-# ----- IDE / Editors -----
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.project
-.classpath
-.settings/
+# prisma / sqlite database files
+/prisma/*.db
+/prisma/*.db-journal
+*.db
+*.db-journal
 
-# ----- OS Files -----
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# runtime media & data
+/media/
+/data/
 
-# ----- Docker -----
-docker-compose.override.yml
-
-# ----- Logs -----
-*.log
-logs/
-
-# ----- Database -----
-*.sql
-!scripts/setup-db.sh
-!scripts/setup-db.bat
-
-# ----- Backups -----
-backups/
-
-# ----- Downloads & Media -----
-downloads/
-media/
-
-# ----- Build artifacts -----
-*.tar.gz
-*.zip
-
-# ----- Testing -----
-.coverage
-htmlcov/
-.pytest_cache/
-.tox/
-coverage.xml
-*.cover
-.hypothesis/
-
-# ----- Misc -----
-*.bak
-*.tmp
-*.temp
-.cache/
+# typescript
+*.tsbuildinfo
