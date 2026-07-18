@@ -30,7 +30,10 @@ COPY . .
 RUN npm run build
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Strip any CRLF line endings (e.g. from a Windows checkout) so the shebang
+# resolves, then make it executable.
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+  && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3000
 
