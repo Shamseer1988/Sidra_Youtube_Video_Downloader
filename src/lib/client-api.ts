@@ -3,7 +3,15 @@
 // Thin client-side API helpers over the app's own /api routes.
 
 async function unwrap<T>(res: Response): Promise<T> {
-  if (res.status === 401 && typeof window !== "undefined") {
+  // Bounce expired sessions to the login page — but never while on the
+  // login flow itself, where a 401 means "wrong credentials" and must be
+  // shown to the user instead of silently reloading the page.
+  if (
+    res.status === 401 &&
+    typeof window !== "undefined" &&
+    !res.url.includes("/api/auth/") &&
+    window.location.pathname !== "/login"
+  ) {
     window.location.href = "/login";
   }
   const json = await res.json().catch(() => ({}));

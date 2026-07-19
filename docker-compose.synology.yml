@@ -23,6 +23,9 @@ services:
       MAX_CONCURRENT_DOWNLOADS: "2"
       # Display name shown in the dashboard's storage / system panels.
       NAS_NAME: "SIDRA-NAS"
+      # Set to "true" ONLY when serving over HTTPS (e.g. DSM reverse proxy).
+      # Over plain http://nas-ip:8080 it must stay "false" or login breaks.
+      COOKIE_SECURE: "false"
       # Run as your NAS user so downloaded files get sane ownership.
       # Find yours via `id your-user` over SSH.
       # PUID / PGID are applied by the "user" key below.

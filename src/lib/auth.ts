@@ -49,7 +49,10 @@ export async function setSession(payload: SessionPayload): Promise<void> {
   const store = await cookies();
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    // Self-hosted setups are typically accessed over plain HTTP on the LAN
+    // (http://nas-ip:8080), where browsers drop `Secure` cookies and login
+    // silently fails. Opt in via COOKIE_SECURE=true when serving over HTTPS.
+    secure: process.env.COOKIE_SECURE === "true",
     sameSite: "lax",
     path: "/",
     maxAge: MAX_AGE,
