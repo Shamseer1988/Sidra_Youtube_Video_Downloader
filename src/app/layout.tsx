@@ -1,22 +1,26 @@
 import type { Metadata } from "next";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sidra Media",
+  title: {
+    default: "SidraMedia — Premium Media Dashboard",
+    template: "%s · SidraMedia",
+  },
   description:
-    "Self-hosted media hub — download videos & audio from the web and stream your NAS library, Jellyfin-style.",
+    "Self-hosted media hub — download videos & audio from the web and stream your NAS library with AI-powered organization.",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
-        className="font-sans antialiased bg-navy-900 text-slate-200 min-h-screen"
+        className="min-h-screen bg-background font-sans text-foreground antialiased"
         suppressHydrationWarning
       >
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
