@@ -19,10 +19,11 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Install dependencies. The postinstall hook runs `prisma generate`, so the
-# schema must be present before `npm ci`.
+# schema must be present before `npm ci`. devDependencies must be included
+# despite NODE_ENV=production — `next build` needs tailwind/typescript.
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci
+RUN npm ci --include=dev
 
 # Build the app.
 COPY . .
