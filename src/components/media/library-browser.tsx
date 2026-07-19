@@ -89,7 +89,7 @@ export function LibraryBrowser({
             <button
               onClick={scan}
               disabled={scanning}
-              className="h-9 px-3 rounded-lg bg-navy-800/80 border border-slate-600/30 text-sm text-slate-300 hover:text-white flex items-center gap-1.5 disabled:opacity-50"
+              className="h-9 px-3 rounded-lg bg-navy-800/80 border border-slate-600/30 text-sm text-slate-300 hover:text-foreground flex items-center gap-1.5 disabled:opacity-50"
             >
               <RefreshCw className={cn("h-4 w-4", scanning && "animate-spin")} />
               <span className="hidden sm:inline">Scan</span>

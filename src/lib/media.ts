@@ -10,6 +10,7 @@ import {
   VIDEO_EXTS,
   AUDIO_EXTS,
 } from "./config";
+import { allExtraDirs, extraDirs } from "./runtime-settings";
 import { prisma } from "./prisma";
 
 // ── Path safety ─────────────────────────────────────────────────────
@@ -23,10 +24,15 @@ export function isInsideAllowed(target: string, dirs: string[]): boolean {
   });
 }
 
+/** Every directory the app may read: env-configured + UI-added folders. */
+export function allowedDirsRuntime(): string[] {
+  return [...allAllowedDirs(), ...allExtraDirs()];
+}
+
 /** Resolve a library item's path, verifying it is still allowed & exists. */
 export function verifyPath(p: string): string | null {
   if (!p) return null;
-  if (!isInsideAllowed(p, allAllowedDirs())) return null;
+  if (!isInsideAllowed(p, allowedDirsRuntime())) return null;
   try {
     if (!fs.statSync(p).isFile()) return null;
   } catch {
@@ -119,6 +125,8 @@ function scanTargets(): ScanTarget[] {
   if (config.downloadAudioPath) t.push({ dir: config.downloadAudioPath, type: "audio", source: "download" });
   for (const d of config.mediaVideoPaths) t.push({ dir: d, type: "video", source: "nas" });
   for (const d of config.mediaAudioPaths) t.push({ dir: d, type: "audio", source: "nas" });
+  for (const d of extraDirs("video")) t.push({ dir: d, type: "video", source: "nas" });
+  for (const d of extraDirs("audio")) t.push({ dir: d, type: "audio", source: "nas" });
   return t;
 }
 

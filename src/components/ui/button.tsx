@@ -15,13 +15,13 @@ const buttonVariants = cva(
         secondary:
           "bg-navy-700/50 text-slate-200 border border-slate-600/30 hover:bg-navy-700 hover:border-slate-500/50 focus:ring-slate-500",
         ghost:
-          "text-slate-300 hover:bg-navy-700/50 hover:text-white focus:ring-slate-500",
+          "text-slate-300 hover:bg-navy-700/50 hover:text-foreground focus:ring-slate-500",
         danger:
           "bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 focus:ring-red-500",
         success:
           "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 focus:ring-emerald-500",
         outline:
-          "border border-slate-600/50 text-slate-300 hover:bg-navy-700/50 hover:text-white focus:ring-accent-blue",
+          "border border-slate-600/50 text-slate-300 hover:bg-navy-700/50 hover:text-foreground focus:ring-accent-blue",
       },
       size: {
         sm: "h-8 px-3 text-xs",

@@ -19,17 +19,21 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Install dependencies. The postinstall hook runs `prisma generate`, so the
-# schema must be present before `npm ci`.
+# schema must be present before `npm ci`. devDependencies must be included
+# despite NODE_ENV=production — `next build` needs tailwind/typescript.
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci
+RUN npm ci --include=dev
 
 # Build the app.
 COPY . .
 RUN npm run build
 
+# Strip CR characters in case the file was checked out with CRLF endings
+# on Windows — a `#!/bin/sh\r` shebang makes exec fail with ENOENT.
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+  && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3000
 
