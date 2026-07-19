@@ -4,7 +4,9 @@ import { memo } from "react";
 import { motion } from "framer-motion";
 import { CalendarClock, CloudMoon, DownloadCloud, HardDrive } from "lucide-react";
 import { useClock } from "@/hooks/use-clock";
-import { demoWeather, storageTotals, downloadsPerDay } from "@/lib/mock-data";
+import { useStorageInfo } from "@/hooks/use-system";
+import { formatBytes } from "@/lib/utils";
+import { demoWeather, downloadsPerDay } from "@/lib/mock-data";
 
 const PARTICLES = [
   { left: "8%", top: "22%", size: 3, delay: 0 },
@@ -42,6 +44,7 @@ function HeroChip({
 /** Large hero card — animated aurora gradient, floating particles, live clock. */
 export const Hero = memo(function Hero({ username }: { username: string }) {
   const clock = useClock();
+  const { data: storage } = useStorageInfo();
   const todayDownloads = downloadsPerDay[downloadsPerDay.length - 1].downloads;
 
   return (
@@ -124,8 +127,12 @@ export const Hero = memo(function Hero({ username }: { username: string }) {
           />
           <HeroChip
             icon={<HardDrive className="h-4 w-4" />}
-            primary={`${storageTotals.freeTb} TB free`}
-            secondary={`of ${storageTotals.capacityTb} TB on ${storageTotals.nasName}`}
+            primary={storage ? `${formatBytes(storage.freeBytes, 1)} free` : "— free"}
+            secondary={
+              storage
+                ? `of ${formatBytes(storage.totalBytes, 1)} on ${storage.nasName}`
+                : "checking storage…"
+            }
           />
           <HeroChip
             icon={<DownloadCloud className="h-4 w-4" />}

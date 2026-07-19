@@ -113,7 +113,7 @@ export function MediaCard({
       <div className="mt-2 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <Link href={`/watch/${item.id}`}>
-            <p className="text-sm font-medium text-slate-200 truncate hover:text-white">
+            <p className="text-sm font-medium text-slate-200 truncate hover:text-foreground">
               {item.title}
             </p>
           </Link>

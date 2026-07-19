@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Play, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { navSections, isNavActive, type NavItem } from "@/lib/navigation";
 import { useUIStore } from "@/lib/ui-store";
-import { storageTotals, appVersion } from "@/lib/mock-data";
+import { useStorageInfo } from "@/hooks/use-system";
+import { appVersion } from "@/lib/mock-data";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /* ------------------------------------------------------------------ */
@@ -100,7 +101,11 @@ function SidebarLink({
 }
 
 function StorageRing({ collapsed }: { collapsed: boolean }) {
-  const { usedPercent, usedTb, capacityTb, nasName } = storageTotals;
+  const { data } = useStorageInfo();
+  const usedPercent = data?.usedPercent ?? 0;
+  const used = data ? formatBytes(data.usedBytes, 1) : "—";
+  const capacity = data ? formatBytes(data.totalBytes, 1) : "—";
+  const nasName = data?.nasName ?? "…";
   const r = 20;
   const c = 2 * Math.PI * r;
 
@@ -141,7 +146,7 @@ function StorageRing({ collapsed }: { collapsed: boolean }) {
           <div className="flex justify-center py-2">{ring}</div>
         </TooltipTrigger>
         <TooltipContent side="right">
-          {usedTb} TB / {capacityTb} TB used
+          {used} / {capacity} used
         </TooltipContent>
       </Tooltip>
     );
@@ -153,7 +158,7 @@ function StorageRing({ collapsed }: { collapsed: boolean }) {
       <div className="min-w-0">
         <p className="text-[11px] font-medium text-muted">Storage Usage</p>
         <p className="text-sm font-semibold text-foreground">
-          {usedTb} TB <span className="font-normal text-muted-2">/ {capacityTb} TB</span>
+          {used} <span className="font-normal text-muted-2">/ {capacity}</span>
         </p>
         <p className="truncate text-[10px] text-muted-2">NAS: {nasName}</p>
       </div>

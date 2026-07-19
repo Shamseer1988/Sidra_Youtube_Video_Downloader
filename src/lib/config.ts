@@ -38,6 +38,9 @@ export const config = {
   ffprobePath: process.env.FFPROBE_PATH || "ffprobe",
 
   authSecret: process.env.AUTH_SECRET || "insecure-dev-secret-change-me",
+
+  // Display name for the storage host (sidebar ring / storage overview).
+  nasName: process.env.NAS_NAME || os.hostname(),
 } as const;
 
 /** All directories the app is allowed to read/stream from. */
