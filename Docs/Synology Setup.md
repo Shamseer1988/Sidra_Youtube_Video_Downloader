@@ -220,6 +220,8 @@ Now the app is available at `https://sidra.your-domain.com`.
 
 | Symptom | Fix |
 |---|---|
+| Login button stuck at "Signing in…" over `http://nas-ip:8080` | Old builds set a `Secure` session cookie which browsers drop over plain HTTP. Pull the latest code and rebuild; keep `COOKIE_SECURE: "false"` unless you serve over HTTPS. |
+| Changed `ADMIN_PASSWORD` but the old password still applies | Fixed in current code — the seed now syncs the admin password from `ADMIN_PASSWORD` on every container start. Pull, rebuild, restart. |
 | `exec docker-entrypoint.sh failed: No such file or directory` | The entrypoint got Windows line endings. Pull the latest code (the build strips CRLF automatically) and rebuild. |
 | Build fails with `Cannot find module '@tailwindcss/postcss'` | Old code. Pull the latest — `npm ci --include=dev` is required in the Dockerfile. |
 | `permission denied` writing downloads | The `user:` uid:gid in the compose file has no write permission on the download shares. Check **Control Panel → Shared Folder → Permissions**, or run `id` again and fix the value. |

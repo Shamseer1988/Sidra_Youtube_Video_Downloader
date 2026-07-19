@@ -12,7 +12,19 @@ async function main() {
 
   const existing = await prisma.user.findFirst({ where: { role: "admin" } });
   if (existing) {
-    console.log(`[seed] admin already exists (${existing.username}) — skipping`);
+    // Keep the admin password in sync with ADMIN_PASSWORD so changing it in
+    // the compose file works on redeploy (there is no in-app password UI).
+    const matches = await bcrypt.compare(password, existing.passwordHash);
+    if (!matches) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { passwordHash },
+      });
+      console.log(`[seed] admin "${existing.username}" password updated from ADMIN_PASSWORD`);
+    } else {
+      console.log(`[seed] admin already exists (${existing.username}) — up to date`);
+    }
     return;
   }
 
