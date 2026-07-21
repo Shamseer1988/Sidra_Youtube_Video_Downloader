@@ -66,6 +66,7 @@ export function MediaMetadata({
                 {meta?.year ? <span className="ml-2 font-normal text-muted-2">({meta.year})</span> : null}
               </h2>
               {meta?.tagline && <p className="mt-0.5 text-sm italic text-muted-2">{meta.tagline}</p>}
+              {meta?.artist && <p className="mt-0.5 text-sm text-muted">{meta.artist}</p>}
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-2">
                 {meta?.rating ? (
                   <span className="flex items-center gap-1 text-amber-400">

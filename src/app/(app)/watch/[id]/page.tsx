@@ -130,9 +130,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         </div>
       </div>
 
-      {item.type === "video" && (
-        <MediaMetadata itemId={id} metadata={item.metadata} canEdit />
-      )}
+      <MediaMetadata itemId={id} metadata={item.metadata} canEdit />
 
       {playlistOpen && <AddToPlaylistModal itemId={id} onClose={() => setPlaylistOpen(false)} />}
     </div>

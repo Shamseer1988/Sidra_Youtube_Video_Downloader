@@ -193,6 +193,8 @@ type ViewMode =
   | "recent-added"
   | "recent-played"
   | "continue"
+  | "genres"
+  | "collections"
   | "years"
   | "resolution"
   | "duration"
@@ -204,6 +206,8 @@ const VIEW_OPTIONS: { v: ViewMode; label: string }[] = [
   { v: "recent-added", label: "Recently Added" },
   { v: "recent-played", label: "Recently Played" },
   { v: "continue", label: "Continue" },
+  { v: "genres", label: "Genres" },
+  { v: "collections", label: "Collections" },
   { v: "years", label: "Years" },
   { v: "resolution", label: "Resolution" },
   { v: "duration", label: "Duration" },
@@ -260,6 +264,41 @@ function fileYear(item: LibraryItem): string {
   return Number.isFinite(y) && y > 1900 ? String(y) : "Unknown";
 }
 
+function pushMap(map: Map<string, LibraryItem[]>, key: string, item: LibraryItem) {
+  const bucket = map.get(key);
+  if (bucket) bucket.push(item);
+  else map.set(key, [item]);
+}
+
+// Genres are multi-valued, so an item appears under each of its genres.
+function groupByGenre(items: LibraryItem[]): Group[] {
+  const map = new Map<string, LibraryItem[]>();
+  for (const it of items) {
+    const genres = it.metadata?.genres ?? [];
+    if (genres.length === 0) pushMap(map, "Ungrouped", it);
+    else for (const g of genres) pushMap(map, g, it);
+  }
+  return [...map.entries()]
+    .sort((a, b) => {
+      if (a[0] === "Ungrouped") return 1;
+      if (b[0] === "Ungrouped") return -1;
+      return a[0].localeCompare(b[0]);
+    })
+    .map(([label, its]) => ({ label, items: byTitle(its) }));
+}
+
+// Collections only include items that actually belong to one.
+function groupByCollection(items: LibraryItem[]): Group[] {
+  const map = new Map<string, LibraryItem[]>();
+  for (const it of items) {
+    const c = it.metadata?.collection;
+    if (c) pushMap(map, c, it);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([label, its]) => ({ label, items: byTitle(its) }));
+}
+
 /** Turn a library's flat item list into the sections a given view shows. */
 function buildView(view: ViewMode, items: LibraryItem[]): Group[] {
   switch (view) {
@@ -285,6 +324,10 @@ function buildView(view: ViewMode, items: LibraryItem[]): Group[] {
             .sort((a, b) => (b.state?.playedAt || "").localeCompare(a.state?.playedAt || "")),
         },
       ];
+    case "genres":
+      return groupByGenre(items);
+    case "collections":
+      return groupByCollection(items);
     case "years": {
       const groups = groupBy(items, fileYear);
       // Newest year first, "Unknown" last.
@@ -502,6 +545,11 @@ export function CategoryExplorer({ category }: { category: LibraryCategory }) {
             category={category}
             groups={buildView(view, searching ? filtered : items).filter((g) => g.items.length > 0)}
             searching={searching}
+            hint={
+              view === "genres" || view === "collections"
+                ? "Open an item and hit Refresh Metadata to populate this view."
+                : undefined
+            }
             onPlayAt={category === "music" ? player.playQueue : undefined}
           />
         )
@@ -548,11 +596,13 @@ function ViewSections({
   category,
   groups,
   searching,
+  hint,
   onPlayAt,
 }: {
   category: LibraryCategory;
   groups: Group[];
   searching: boolean;
+  hint?: string;
   onPlayAt?: (list: LibraryItem[], index: number) => void;
 }) {
   if (groups.length === 0) {
@@ -561,7 +611,7 @@ function ViewSections({
         <FolderOpen className="mb-3 h-8 w-8 text-muted-2" />
         <p className="text-sm font-medium text-foreground">{searching ? "No matches" : "Nothing here yet"}</p>
         <p className="mt-1 text-xs text-muted">
-          {searching ? "Try a different search." : "This view has no items."}
+          {searching ? "Try a different search." : hint ?? "This view has no items."}
         </p>
       </div>
     );

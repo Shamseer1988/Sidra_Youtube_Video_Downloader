@@ -26,11 +26,21 @@ interface Quality {
 // Containers a browser can play natively. Anything else (VOB, MPG, AVI,
 // WMV, TS, M2TS, FLV, and often MKV/MOV) must be transcoded by ffmpeg,
 // so those default to a transcoded rung instead of a failing direct play.
-const DIRECT_PLAY_EXTS = new Set(["mp4", "m4v", "webm"]);
+const DIRECT_PLAY_EXTS = new Set(["mp4", "m4v", "webm", "mov"]);
+// Browser-decodable codecs. When the scanner captured codec info we use it
+// to catch an .mp4 that wraps an incompatible codec (e.g. MPEG-4/Xvid, or
+// HEVC which most browsers can't decode); otherwise we fall back to the
+// container whitelist alone.
+const DIRECT_PLAY_VCODECS = new Set(["h264", "avc1", "vp8", "vp9", "av1"]);
+const DIRECT_PLAY_ACODECS = new Set(["aac", "mp3", "opus", "vorbis", ""]);
 
 function isDirectPlayable(item: LibraryItem): boolean {
   const ext = (item.ext ?? "").toLowerCase().replace(/^\./, "");
-  return DIRECT_PLAY_EXTS.has(ext);
+  if (!DIRECT_PLAY_EXTS.has(ext)) return false;
+  // If we know the codecs, require both to be browser-decodable.
+  if (item.vcodec && !DIRECT_PLAY_VCODECS.has(item.vcodec.toLowerCase())) return false;
+  if (item.acodec && !DIRECT_PLAY_ACODECS.has(item.acodec.toLowerCase())) return false;
+  return true;
 }
 
 function qualitiesFor(item: LibraryItem): Quality[] {

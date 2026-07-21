@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ok, withAuth } from "@/lib/api";
+import { toStored } from "@/lib/metadata";
 import type { Prisma } from "@prisma/client";
 
 // List library items (downloaded + NAS) with the current user's state.
@@ -35,12 +36,12 @@ export const GET = withAuth(async (req, user) => {
     where,
     orderBy,
     take: limit,
-    include: { states: { where: { userId: user.id } } },
+    include: { states: { where: { userId: user.id } }, metadata: true },
   });
 
   const shaped = items.map((it) => {
     const st = it.states[0];
-    const { states, path: _p, ...rest } = it;
+    const { states, metadata, path: _p, ...rest } = it;
     return {
       ...rest,
       state: {
@@ -51,6 +52,7 @@ export const GET = withAuth(async (req, user) => {
         finished: st?.finished ?? false,
         playedAt: st?.playedAt ?? null,
       },
+      metadata: metadata ? toStored(metadata) : null,
     };
   });
 

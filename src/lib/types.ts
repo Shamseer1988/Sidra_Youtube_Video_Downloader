@@ -46,6 +46,8 @@ export interface ItemMetadata {
   cast: { name: string; character: string | null }[];
   director: string | null;
   studio: string | null;
+  logo: string | null;
+  artist: string | null;
   poster: string | null;
   backdrop: string | null;
   collection: string | null;
@@ -64,6 +66,8 @@ export interface LibraryItem {
   duration: number | null;
   width: number | null;
   height: number | null;
+  vcodec?: string | null;
+  acodec?: string | null;
   ext: string | null;
   thumbnail: string | null;
   createdAt: string;

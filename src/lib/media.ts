@@ -47,14 +47,15 @@ interface ProbeResult {
   duration?: number;
   width?: number;
   height?: number;
+  vcodec?: string;
+  acodec?: string;
 }
 
 function runProbe(file: string): Promise<ProbeResult> {
   return new Promise((resolve) => {
     const args = [
       "-v", "error",
-      "-select_streams", "v:0",
-      "-show_entries", "format=duration:stream=width,height",
+      "-show_entries", "format=duration:stream=index,codec_type,codec_name,width,height",
       "-of", "json",
       file,
     ];
@@ -66,11 +67,15 @@ function runProbe(file: string): Promise<ProbeResult> {
       try {
         const parsed = JSON.parse(out || "{}");
         const dur = parsed.format?.duration ? parseFloat(parsed.format.duration) : undefined;
-        const stream = parsed.streams?.[0] || {};
+        const streams: FfprobeStream[] = parsed.streams || [];
+        const v = streams.find((s) => s.codec_type === "video");
+        const a = streams.find((s) => s.codec_type === "audio");
         resolve({
           duration: Number.isFinite(dur) ? dur : undefined,
-          width: stream.width,
-          height: stream.height,
+          width: v?.width,
+          height: v?.height,
+          vcodec: v?.codec_name,
+          acodec: a?.codec_name,
         });
       } catch {
         resolve({});
@@ -109,6 +114,8 @@ interface FfprobeStream {
   codec_type?: string;
   codec_name?: string;
   channels?: number;
+  width?: number;
+  height?: number;
   disposition?: { default?: number };
   tags?: { language?: string; title?: string };
 }
@@ -455,6 +462,8 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
             duration: probe.duration ?? null,
             width: probe.width ?? null,
             height: probe.height ?? null,
+            vcodec: probe.vcodec ?? null,
+            acodec: probe.acodec ?? null,
             ext: ext.replace(".", ""),
             mtime,
           },

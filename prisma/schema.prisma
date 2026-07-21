@@ -87,6 +87,8 @@ model LibraryItem {
   duration   Float?
   width       Int?
   height      Int?
+  vcodec     String? // primary video codec (for direct-play detection)
+  acodec     String? // primary audio codec
   ext        String?
   thumbnail  String? // relative cache path if generated
   addedById  String?  // user who downloaded it, if any
@@ -123,6 +125,8 @@ model ItemMetadata {
   cast        String?     // JSON {name, character}[]
   director    String?
   studio      String?
+  logo        String?     // studio/network logo URL
+  artist      String?     // primary artist (music)
   poster      String?     // absolute image URL
   backdrop    String?     // absolute image URL
   collection  String?
