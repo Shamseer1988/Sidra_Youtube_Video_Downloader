@@ -32,6 +32,26 @@ export interface SubtitleTrack {
   source: "embedded" | "external";
 }
 
+export interface ItemMetadata {
+  provider: string | null;
+  mediaKind: string | null;
+  title: string | null;
+  overview: string | null;
+  tagline: string | null;
+  releaseDate: string | null;
+  year: number | null;
+  runtime: number | null;
+  rating: number | null;
+  genres: string[];
+  cast: { name: string; character: string | null }[];
+  director: string | null;
+  studio: string | null;
+  poster: string | null;
+  backdrop: string | null;
+  collection: string | null;
+  edited: boolean;
+}
+
 export interface LibraryItem {
   id: string;
   title: string;
@@ -49,6 +69,7 @@ export interface LibraryItem {
   createdAt: string;
   mtime: string;
   state: MediaState;
+  metadata?: ItemMetadata | null;
 }
 
 export interface DownloadJob {

@@ -10,6 +10,7 @@ import { useToast } from "@/components/providers/toast-provider";
 import { usePlayer } from "@/components/player/player-provider";
 import { VideoPlayer } from "@/components/player/video-player";
 import { AddToPlaylistModal } from "@/components/media/add-to-playlist";
+import { MediaMetadata } from "@/components/media/media-metadata";
 import type { LibraryItem } from "@/lib/types";
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -128,6 +129,10 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
           </ActionButton>
         </div>
       </div>
+
+      {item.type === "video" && (
+        <MediaMetadata itemId={id} metadata={item.metadata} canEdit />
+      )}
 
       {playlistOpen && <AddToPlaylistModal itemId={id} onClose={() => setPlaylistOpen(false)} />}
     </div>

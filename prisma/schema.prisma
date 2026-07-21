@@ -95,11 +95,40 @@ model LibraryItem {
 
   states     UserMediaState[]
   playlistItems PlaylistItem[]
+  metadata   ItemMetadata?
 
   @@index([type, source])
   @@index([category])
   @@index([libraryId])
   @@index([mtime])
+}
+
+// Fetched (TMDB/OMDb) or manually-edited metadata for a library item.
+// One row per item; absent until a refresh is run.
+model ItemMetadata {
+  id          String      @id @default(cuid())
+  itemId      String      @unique
+  item        LibraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  provider    String?     // "tmdb" | "omdb" | "manual"
+  providerId  String?     // provider's id for re-fetching
+  mediaKind   String?     // "movie" | "tv"
+  title       String?     // canonical title
+  overview    String?
+  tagline     String?
+  releaseDate String?
+  year        Int?
+  runtime     Int?        // minutes
+  rating      Float?      // 0–10
+  genres      String?     // JSON string[]
+  cast        String?     // JSON {name, character}[]
+  director    String?
+  studio      String?
+  poster      String?     // absolute image URL
+  backdrop    String?     // absolute image URL
+  collection  String?
+  edited      Boolean     @default(false) // manual edits present
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 // Per-user interaction with a library item: favorite, watch-later, like,
