@@ -240,7 +240,7 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
     >
       <video
         ref={videoRef}
-        poster={item.thumbnail ? `/api/thumbnail/${item.id}` : undefined}
+        poster={`/api/thumbnail/${item.id}?size=800`}
         className="h-full w-full bg-black"
         onClick={togglePlay}
         onPlay={() => setPlaying(true)}

@@ -126,7 +126,12 @@ function FileTile({
           )}
         >
           <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
-            <MediaThumb id={item.id} title={item.title} type={item.type} hasThumbnail={!!item.thumbnail} />
+            <MediaThumb
+              id={item.id}
+              title={item.title}
+              type={item.type}
+              previewAt={item.type === "video" && item.duration ? item.duration / 2 : undefined}
+            />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
 

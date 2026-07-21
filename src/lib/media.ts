@@ -202,34 +202,109 @@ export async function listTracks(
 
 // ── Thumbnail generation ────────────────────────────────────────────
 
-function thumbCacheFile(itemId: string): string {
-  return path.join(config.thumbnailDir, `${itemId}.jpg`);
+// Multiple cached widths so grids request small images and viewers larger
+// ones. WebP is ~30% smaller than JPEG at equal quality.
+export const THUMB_SIZES = [200, 400, 800] as const;
+export type ThumbSize = (typeof THUMB_SIZES)[number];
+export const DEFAULT_THUMB_SIZE: ThumbSize = 400;
+
+export function clampThumbSize(n: number): ThumbSize {
+  return (THUMB_SIZES.find((s) => s === n) ?? DEFAULT_THUMB_SIZE) as ThumbSize;
 }
 
-/** Generate (once) and return the cached thumbnail file path for a video. */
-export async function ensureThumbnail(itemId: string, filePath: string): Promise<string | null> {
-  const out = thumbCacheFile(itemId);
+function thumbCacheFile(itemId: string, size: number, atSec?: number): string {
+  const suffix = atSec && atSec > 0 ? `_t${Math.floor(atSec)}` : "";
+  return path.join(config.thumbnailDir, `${itemId}_${size}${suffix}.webp`);
+}
+
+function runThumbnail(filePath: string, out: string, size: number, seek: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const args = [
+      "-ss", seek,
+      "-i", filePath,
+      "-frames:v", "1",
+      "-vf", `scale=${size}:-2`,
+      "-c:v", "libwebp",
+      "-quality", "80",
+      "-y", out,
+    ];
+    const child = spawn(config.ffmpegPath, args, { stdio: "ignore" });
+    child.on("error", () => resolve(false));
+    child.on("close", (code) => {
+      try {
+        resolve(code === 0 && fs.existsSync(out) && fs.statSync(out).size > 0);
+      } catch {
+        resolve(false);
+      }
+    });
+  });
+}
+
+/**
+ * Generate (once, then cache) a WebP thumbnail for a video and return its
+ * path. Seeks are tried from a representative frame down to 0s so short
+ * clips (whose 5s mark is past the end) still produce an image instead of
+ * silently failing. `atSec` requests a specific frame (hover previews).
+ */
+export async function ensureThumbnail(
+  itemId: string,
+  filePath: string,
+  opts?: { size?: number; durationSec?: number | null; atSec?: number },
+): Promise<string | null> {
+  const size = clampThumbSize(opts?.size ?? DEFAULT_THUMB_SIZE);
+  const out = thumbCacheFile(itemId, size, opts?.atSec);
   try {
     if (fs.existsSync(out) && fs.statSync(out).size > 0) return out;
   } catch { /* regenerate */ }
 
   await fsp.mkdir(config.thumbnailDir, { recursive: true });
 
-  return new Promise((resolve) => {
-    const args = [
-      "-ss", "00:00:05",
-      "-i", filePath,
-      "-frames:v", "1",
-      "-vf", "scale=480:-1",
-      "-y", out,
-    ];
-    const child = spawn(config.ffmpegPath, args, { stdio: "ignore" });
-    child.on("error", () => resolve(null));
-    child.on("close", (code) => {
-      if (code === 0 && fs.existsSync(out)) resolve(out);
-      else resolve(null);
+  // Build an ordered list of seek points to attempt.
+  const seeks: string[] = [];
+  if (opts?.atSec && opts.atSec > 0) {
+    seeks.push(String(Math.floor(opts.atSec)));
+  } else if (opts?.durationSec && opts.durationSec > 0) {
+    // A frame ~20% in avoids black intros/logos.
+    seeks.push(String(Math.max(1, Math.min(Math.floor(opts.durationSec * 0.2), 600))));
+  }
+  seeks.push("5", "1", "0");
+
+  for (const seek of seeks) {
+    if (await runThumbnail(filePath, out, size, seek)) return out;
+  }
+  return null;
+}
+
+// ── Background thumbnail queue ──────────────────────────────────────
+// Pre-generate thumbnails off the request path (e.g. after a scan) with
+// bounded concurrency so a large library doesn't saturate the CPU.
+
+const thumbJobs: (() => Promise<void>)[] = [];
+let thumbActive = 0;
+const THUMB_CONCURRENCY = Number(process.env.THUMBNAIL_CONCURRENCY || 2);
+
+function pumpThumbs() {
+  while (thumbActive < THUMB_CONCURRENCY && thumbJobs.length > 0) {
+    const job = thumbJobs.shift()!;
+    thumbActive++;
+    job().finally(() => {
+      thumbActive--;
+      pumpThumbs();
     });
+  }
+}
+
+/** Queue background generation of the default thumbnail for a video item. */
+export function queueThumbnail(itemId: string, filePath: string, durationSec?: number | null) {
+  thumbJobs.push(async () => {
+    const out = await ensureThumbnail(itemId, filePath, { durationSec });
+    if (out) {
+      await prisma.libraryItem
+        .update({ where: { id: itemId }, data: { thumbnail: path.basename(out) } })
+        .catch(() => {});
+    }
   });
+  pumpThumbs();
 }
 
 // ── Library scanning ────────────────────────────────────────────────
@@ -367,7 +442,7 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
         }
 
         const probe = target.type === "video" ? await runProbe(file) : {};
-        await prisma.libraryItem.create({
+        const created = await prisma.libraryItem.create({
           data: {
             path: file,
             title: path.basename(file, ext),
@@ -384,6 +459,9 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
             mtime,
           },
         });
+        if (target.type === "video") {
+          queueThumbnail(created.id, file, probe.duration ?? null);
+        }
         added++;
       }
 

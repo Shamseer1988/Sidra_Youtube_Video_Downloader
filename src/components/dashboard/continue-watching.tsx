@@ -51,7 +51,12 @@ function WatchCard({ item, index }: { item: LibraryItem; index: number }) {
       <Link href={`/watch/${item.id}`}>
         <div className="relative aspect-video overflow-hidden rounded-2xl border border-stroke shadow-lg shadow-black/30 transition-all duration-300 group-hover:border-primary/40 group-hover:shadow-2xl group-hover:shadow-primary/15">
           <div className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-105">
-            <MediaThumb id={item.id} title={item.title} type={item.type} hasThumbnail={!!item.thumbnail} />
+            <MediaThumb
+              id={item.id}
+              title={item.title}
+              type={item.type}
+              previewAt={item.duration ? item.duration / 2 : undefined}
+            />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
 
