@@ -211,7 +211,13 @@ class DownloadQueue {
     if (dl.mediaType === "audio") {
       args.push("-x", "--audio-format", "mp3", "--audio-quality", "0", "--embed-metadata");
     } else {
-      const fmt = dl.formatId && dl.formatId !== "best" ? dl.formatId : "bv*+ba/b";
+      // A user-selected format is usually a video-only stream on YouTube
+      // (higher resolutions carry no audio), so pair it with the best audio
+      // track and fall back progressively so the output always has sound.
+      const fmt =
+        dl.formatId && dl.formatId !== "best"
+          ? `${dl.formatId}+ba/${dl.formatId}/bv*+ba/b`
+          : "bv*+ba/b";
       args.push("-f", fmt, "--merge-output-format", "mp4");
     }
 
