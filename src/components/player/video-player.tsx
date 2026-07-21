@@ -20,12 +20,31 @@ interface Quality {
   height: number | null; // null = original / direct play
 }
 
+// Containers a browser can play natively. Anything else (VOB, MPG, AVI,
+// WMV, TS, M2TS, FLV, and often MKV/MOV) must be transcoded by ffmpeg,
+// so those default to a transcoded rung instead of a failing direct play.
+const DIRECT_PLAY_EXTS = new Set(["mp4", "m4v", "webm"]);
+
+function isDirectPlayable(item: LibraryItem): boolean {
+  const ext = (item.ext ?? "").toLowerCase().replace(/^\./, "");
+  return DIRECT_PLAY_EXTS.has(ext);
+}
+
 function qualitiesFor(item: LibraryItem): Quality[] {
-  const q: Quality[] = [{ label: "Original", height: null }];
-  const h = item.height ?? 1080;
-  for (const height of [1080, 720, 480]) {
-    if (height < h) q.push({ label: `${height}p`, height });
-  }
+  const native = item.height ?? 1080;
+  const direct = isDirectPlayable(item);
+  const q: Quality[] = [];
+
+  if (direct) q.push({ label: "Original", height: null });
+
+  // Transcode ladder, capped at the source height (never upscale).
+  const rungs = new Set<number>([Math.min(native, 1080)]);
+  for (const h of [1080, 720, 480]) if (h < native) rungs.add(h);
+  for (const h of [...rungs].sort((a, b) => b - a)) q.push({ label: `${h}p`, height: h });
+
+  // For non-native containers, still expose a last-resort direct attempt.
+  if (!direct) q.push({ label: "Original", height: null });
+
   return q;
 }
 

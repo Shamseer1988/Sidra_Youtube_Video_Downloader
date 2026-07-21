@@ -89,9 +89,14 @@ function FolderTile({
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary transition-transform group-hover:scale-110">
         {icon ?? <Folder className="h-7 w-7" />}
       </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-foreground">{label}</span>
-        <span className="block text-[11px] text-muted-2">
+      <span className="w-full min-w-0">
+        <span
+          title={label}
+          className="block break-words text-sm font-semibold leading-snug text-foreground line-clamp-2"
+        >
+          {label}
+        </span>
+        <span className="mt-0.5 block text-[11px] text-muted-2">
           {count} item{count === 1 ? "" : "s"}
         </span>
       </span>

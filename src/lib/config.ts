@@ -55,8 +55,13 @@ export function allAllowedDirs(): string[] {
 }
 
 export const VIDEO_EXTS = new Set([
-  ".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v", ".flv", ".wmv", ".mpg", ".mpeg", ".ts",
+  ".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v", ".flv", ".wmv",
+  ".mpg", ".mpeg", ".ts", ".m2ts", ".mts", ".vob",
 ]);
+
+// Containers a browser can play natively (H.264/VP9/AV1 in these shells).
+// Everything else in VIDEO_EXTS must be transcoded on the fly by ffmpeg.
+export const DIRECT_PLAY_EXTS = new Set([".mp4", ".m4v", ".webm"]);
 export const AUDIO_EXTS = new Set([
   ".mp3", ".m4a", ".flac", ".wav", ".ogg", ".opus", ".aac", ".wma",
 ]);

@@ -164,6 +164,18 @@ async function* walk(dir: string): AsyncGenerator<string> {
   }
 }
 
+/** True if `dir` exists, is a directory, and can actually be listed. */
+async function isReadableDir(dir: string): Promise<boolean> {
+  try {
+    const st = await fsp.stat(dir);
+    if (!st.isDirectory()) return false;
+    await fsp.readdir(dir);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 let scanning = false;
 
 /**
@@ -178,13 +190,24 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
 
   try {
     const seen = new Set<string>();
-    for (const target of await scanTargets()) {
+    const targets = await scanTargets();
+
+    // Track which target roots we could actually read this pass. A NAS share
+    // that is momentarily unmounted (common right after a Docker rebuild)
+    // reads as missing/empty — we must NOT treat that as "files deleted",
+    // or pruning would cascade-delete every favorite / watch-later / playlist
+    // entry attached to those items. Only prune under roots proven healthy.
+    const healthyRoots: string[] = [];
+    for (const target of targets) {
+      let filesInTarget = 0;
+      const rootReadable = await isReadableDir(target.dir);
       for await (const file of walk(target.dir)) {
         const ext = path.extname(file).toLowerCase();
         const valid = target.type === "video" ? VIDEO_EXTS.has(ext) : AUDIO_EXTS.has(ext);
         if (!valid) continue;
         scanned++;
         seen.add(file);
+        filesInTarget++;
 
         // Relative subfolder within the library (for the folder view).
         const folder = path.relative(target.dir, path.dirname(file));
@@ -242,22 +265,32 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
         });
         added++;
       }
+
+      // A root is safe to prune under only if we could read it. Local
+      // download folders are trustworthy even when empty; NAS shares must
+      // have yielded at least one file, otherwise we assume the share is
+      // unmounted rather than emptied and leave its rows (and their
+      // favorites / watch-later / playlist links) untouched.
+      const healthy =
+        rootReadable && (target.source === "download" || filesInTarget > 0);
+      if (healthy) healthyRoots.push(path.resolve(target.dir));
     }
 
-    // Prune DB rows whose files no longer exist on disk.
+    // Prune only rows that live under a healthy root AND whose file is truly
+    // gone. Rows under an unavailable share are preserved so user state
+    // survives transient mount failures across Docker rebuilds.
     const all = await prisma.libraryItem.findMany({ select: { id: true, path: true } });
-    const gone = all.filter((row) => !seen.has(row.path) && !fs.existsSync(row.path));
+    const gone = all.filter(
+      (row) =>
+        !seen.has(row.path) &&
+        isInsideAllowed(row.path, healthyRoots) &&
+        !fs.existsSync(row.path),
+    );
     if (gone.length) {
       await prisma.libraryItem.deleteMany({ where: { id: { in: gone.map((g) => g.id) } } });
     }
 
-    // Remove orphaned NAS items that belong to no registered library.
-    // (Cleans up rows left by the pre-libraries auto-scan on upgrade.)
-    const orphaned = await prisma.libraryItem.deleteMany({
-      where: { source: "nas", libraryId: null },
-    });
-
-    return { scanned, added, removed: gone.length + orphaned.count };
+    return { scanned, added, removed: gone.length };
   } finally {
     scanning = false;
   }
@@ -308,7 +341,7 @@ export function contentTypeFor(file: string): string {
     ".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska",
     ".mov": "video/quicktime", ".avi": "video/x-msvideo", ".m4v": "video/mp4",
     ".ts": "video/mp2t", ".mpg": "video/mpeg", ".mpeg": "video/mpeg", ".wmv": "video/x-ms-wmv",
-    ".flv": "video/x-flv",
+    ".flv": "video/x-flv", ".m2ts": "video/mp2t", ".mts": "video/mp2t", ".vob": "video/mpeg",
     ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".flac": "audio/flac",
     ".wav": "audio/wav", ".ogg": "audio/ogg", ".opus": "audio/opus",
     ".aac": "audio/aac", ".wma": "audio/x-ms-wma",
