@@ -79,6 +79,127 @@ function runProbe(file: string): Promise<ProbeResult> {
   });
 }
 
+// ── Audio & subtitle track probing ──────────────────────────────────
+
+export interface AudioTrackInfo {
+  id: number; // ordinal among audio streams → ffmpeg 0:a:<id>
+  label: string;
+  language: string | null;
+  channels: number | null;
+  isDefault: boolean;
+}
+
+export interface SubtitleTrackInfo {
+  id: number; // position in the combined list → /subtitle?track=<id>
+  label: string;
+  language: string | null;
+  source: "embedded" | "external";
+  streamIndex?: number; // ffmpeg 0:s:<streamIndex> for embedded
+  path?: string; // absolute sidecar path for external (server-only)
+}
+
+// Text-based subtitle codecs that ffmpeg can convert to WebVTT. Bitmap
+// subs (PGS/VobSub) are images and cannot become WebVTT, so we skip them.
+const TEXT_SUB_CODECS = new Set([
+  "subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text", "stl",
+]);
+const SUBTITLE_SIDECAR_EXTS = [".srt", ".vtt", ".ass", ".ssa", ".sub"];
+
+interface FfprobeStream {
+  codec_type?: string;
+  codec_name?: string;
+  channels?: number;
+  disposition?: { default?: number };
+  tags?: { language?: string; title?: string };
+}
+
+function probeStreams(file: string): Promise<FfprobeStream[]> {
+  return new Promise((resolve) => {
+    const args = ["-v", "error", "-show_streams", "-of", "json", file];
+    let out = "";
+    const child = spawn(config.ffprobePath, args, { stdio: ["ignore", "pipe", "ignore"] });
+    child.stdout.on("data", (d) => (out += d.toString()));
+    child.on("error", () => resolve([]));
+    child.on("close", () => {
+      try {
+        resolve((JSON.parse(out || "{}").streams as FfprobeStream[]) || []);
+      } catch {
+        resolve([]);
+      }
+    });
+  });
+}
+
+function langLabel(language: string | null, title: string | null, fallback: string): string {
+  const parts = [title, language ? language.toUpperCase() : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : fallback;
+}
+
+/**
+ * List selectable audio and subtitle tracks for a media file: embedded
+ * streams (via ffprobe) plus external subtitle sidecars sharing the video's
+ * base name. Ordering is stable so the /subtitle route can reference a track
+ * by index.
+ */
+export async function listTracks(
+  file: string,
+): Promise<{ audio: AudioTrackInfo[]; subtitles: SubtitleTrackInfo[] }> {
+  const streams = await probeStreams(file);
+  const audio: AudioTrackInfo[] = [];
+  const subtitles: SubtitleTrackInfo[] = [];
+
+  let audioOrdinal = 0;
+  let subStreamOrdinal = 0;
+  for (const s of streams) {
+    const tags = s.tags || {};
+    if (s.codec_type === "audio") {
+      audio.push({
+        id: audioOrdinal,
+        label: langLabel(tags.language ?? null, tags.title ?? null, `Track ${audioOrdinal + 1}`),
+        language: tags.language ?? null,
+        channels: typeof s.channels === "number" ? s.channels : null,
+        isDefault: !!s.disposition?.default,
+      });
+      audioOrdinal++;
+    } else if (s.codec_type === "subtitle") {
+      const ordinal = subStreamOrdinal++;
+      if (!TEXT_SUB_CODECS.has(String(s.codec_name))) continue; // skip bitmap subs
+      subtitles.push({
+        id: subtitles.length,
+        label: langLabel(tags.language ?? null, tags.title ?? null, `Subtitle ${ordinal + 1}`),
+        language: tags.language ?? null,
+        source: "embedded",
+        streamIndex: ordinal,
+      });
+    }
+  }
+
+  // External sidecar subtitles next to the file (movie.en.srt, movie.srt…).
+  try {
+    const dir = path.dirname(file);
+    const base = path.basename(file, path.extname(file));
+    const entries = await fsp.readdir(dir);
+    for (const name of entries.sort()) {
+      const ext = path.extname(name).toLowerCase();
+      if (!SUBTITLE_SIDECAR_EXTS.includes(ext)) continue;
+      if (!name.startsWith(base)) continue;
+      // Infer a language tag from the middle segment, e.g. movie.en.srt → en.
+      const middle = path.basename(name, ext).slice(base.length).replace(/^[.\-_]/, "");
+      subtitles.push({
+        id: subtitles.length,
+        label: langLabel(middle || null, null, `File ${ext.slice(1).toUpperCase()}`),
+        language: middle || null,
+        source: "external",
+        path: path.join(dir, name),
+      });
+    }
+  } catch {
+    /* directory unreadable — embedded tracks still returned */
+  }
+
+  return { audio, subtitles };
+}
+
 // ── Thumbnail generation ────────────────────────────────────────────
 
 function thumbCacheFile(itemId: string): string {

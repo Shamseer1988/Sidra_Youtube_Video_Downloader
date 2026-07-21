@@ -20,6 +20,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const url = new URL(req.url);
   const height = Math.min(2160, Math.max(240, Number(url.searchParams.get("height")) || 720));
   const startSec = Math.max(0, Number(url.searchParams.get("start")) || 0);
+  const audioParam = url.searchParams.get("audio");
+  const audioIndex = audioParam !== null && audioParam !== "" ? Math.max(0, Number(audioParam) || 0) : null;
 
   const item = await prisma.libraryItem.findUnique({ where: { id } });
   if (!item || item.type !== "video") return new Response("Not found", { status: 404 });
@@ -28,7 +30,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!filePath) return new Response("File unavailable", { status: 404 });
 
   const { hwAccel } = await getAppSettings();
-  const args = buildTranscodeArgs({ input: filePath, height, startSec, hwAccel });
+  const args = buildTranscodeArgs({ input: filePath, height, startSec, hwAccel, audioIndex });
 
   const ff = spawn(ffmpegBin(), args, { stdio: ["ignore", "pipe", "pipe"] });
   ff.stderr.on("data", () => {}); // drain to avoid backpressure stalls

@@ -16,6 +16,21 @@ export interface MediaState {
   finished: boolean;
 }
 
+export interface AudioTrack {
+  id: number;
+  label: string;
+  language: string | null;
+  channels?: number | null;
+  isDefault?: boolean;
+}
+
+export interface SubtitleTrack {
+  id: number;
+  label: string;
+  language: string | null;
+  source: "embedded" | "external";
+}
+
 export interface LibraryItem {
   id: string;
   title: string;
