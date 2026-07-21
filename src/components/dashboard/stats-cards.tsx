@@ -2,95 +2,92 @@
 
 import { memo } from "react";
 import { motion } from "framer-motion";
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Clapperboard,
-  DownloadCloud,
-  HardDrive,
-  Music,
-  Tv,
-  type LucideIcon,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { stats, type StatCardData } from "@/lib/mock-data";
+import { Clapperboard, DownloadCloud, HardDrive, Loader2, Music, Video, type LucideIcon } from "lucide-react";
+import { cn, formatBytes } from "@/lib/utils";
+import { useDashboard } from "@/hooks/use-dashboard";
+import { useStorageInfo } from "@/hooks/use-system";
 import { useAnimatedCounter } from "@/hooks/use-animated-counter";
-import { Sparkline } from "@/components/charts/sparkline";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const iconByStat: Record<string, LucideIcon> = {
-  movies: Clapperboard,
-  tv: Tv,
-  music: Music,
-  downloads: DownloadCloud,
-  storage: HardDrive,
-};
+interface Stat {
+  id: string;
+  label: string;
+  value: number;
+  display?: string;
+  sub: string;
+  icon: LucideIcon;
+  iconBg: string;
+  pulse?: boolean;
+}
 
-const colorStyles: Record<
-  StatCardData["color"],
-  { iconBg: string; spark: string; glow: string }
-> = {
-  purple: { iconBg: "from-primary to-violet-500", spark: "#7c3aed", glow: "hover:shadow-primary/20" },
-  blue: { iconBg: "from-accent to-sky-500", spark: "#3b82f6", glow: "hover:shadow-accent/20" },
-  emerald: { iconBg: "from-success to-teal-500", spark: "#10b981", glow: "hover:shadow-success/20" },
-  amber: { iconBg: "from-warning to-orange-500", spark: "#f59e0b", glow: "hover:shadow-warning/20" },
-  indigo: { iconBg: "from-secondary to-indigo-400", spark: "#6366f1", glow: "hover:shadow-secondary/20" },
-};
-
-function StatCard({ stat, index }: { stat: StatCardData; index: number }) {
-  const Icon = iconByStat[stat.id];
-  const styles = colorStyles[stat.color];
+function StatCard({ stat, index }: { stat: Stat; index: number }) {
+  const Icon = stat.icon;
   const animated = useAnimatedCounter(stat.value);
-  const up = stat.delta >= 0;
 
   return (
     <motion.article
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 + index * 0.06, duration: 0.45, ease: "easeOut" }}
-      className={cn(
-        "glass-card card-interactive group relative overflow-hidden p-5",
-        "hover:shadow-2xl",
-        styles.glow
-      )}
-      aria-label={`${stat.label}: ${stat.value}${stat.suffix ?? ""}`}
+      className="glass-card card-interactive group relative overflow-hidden p-5"
+      aria-label={`${stat.label}: ${stat.display ?? stat.value}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div
           className={cn(
             "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg transition-transform duration-300 group-hover:scale-110",
-            styles.iconBg
+            stat.iconBg
           )}
         >
           <Icon className="h-5 w-5" />
         </div>
-        <span
-          className={cn(
-            "flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-            up ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-          )}
-        >
-          {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-          {Math.abs(stat.delta)}
-        </span>
+        {stat.pulse && stat.value > 0 && (
+          <span className="flex items-center gap-1 text-[11px] font-medium text-accent">
+            <Loader2 className="h-3 w-3 animate-spin" /> live
+          </span>
+        )}
       </div>
-
       <p className="mt-4 text-2xl font-bold tabular-nums tracking-tight text-foreground">
-        {animated.toLocaleString()}
-        {stat.suffix}
+        {stat.display ?? animated.toLocaleString()}
       </p>
-      <p className="text-[13px] text-muted">
-        {stat.label} <span className="text-muted-2">· {stat.deltaLabel}</span>
-      </p>
-
-      <div className="mt-3 -mb-1">
-        <Sparkline data={stat.spark} color={styles.spark} height={36} />
-      </div>
+      <p className="text-[13px] text-muted">{stat.label}</p>
+      <p className="mt-0.5 text-[11px] text-muted-2">{stat.sub}</p>
     </motion.article>
   );
 }
 
-/** Row of five KPI stat cards with animated counters + sparklines. */
+/** Real KPI cards from /api/stats + /api/system/storage. */
 export const StatsCards = memo(function StatsCards() {
+  const { data: dash, isLoading } = useDashboard();
+  const { data: storage } = useStorageInfo();
+
+  if (isLoading || !dash) {
+    return (
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-[150px] rounded-2xl" />
+        ))}
+      </section>
+    );
+  }
+
+  const s = dash.stats;
+  const stats: Stat[] = [
+    { id: "videos", label: "Videos", value: s.totalVideos, sub: "in your libraries", icon: Clapperboard, iconBg: "from-primary to-violet-500" },
+    { id: "audio", label: "Music Tracks", value: s.totalAudios, sub: "in your libraries", icon: Music, iconBg: "from-success to-teal-500" },
+    { id: "downloads", label: "Total Downloads", value: s.totalDownloads, sub: "all time", icon: DownloadCloud, iconBg: "from-accent to-sky-500" },
+    { id: "active", label: "Active Downloads", value: s.activeDownloads, sub: "in progress", icon: Video, iconBg: "from-warning to-orange-500", pulse: true },
+    {
+      id: "storage",
+      label: "Library Size",
+      value: s.storageUsed,
+      display: formatBytes(s.storageUsed, 1),
+      sub: storage ? `${storage.usedPercent}% of ${formatBytes(storage.totalBytes, 0)}` : "on disk",
+      icon: HardDrive,
+      iconBg: "from-secondary to-indigo-400",
+    },
+  ];
+
   return (
     <section
       aria-label="Library statistics"

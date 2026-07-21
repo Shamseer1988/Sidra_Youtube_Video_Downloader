@@ -10,7 +10,7 @@ import {
   VIDEO_EXTS,
   AUDIO_EXTS,
 } from "./config";
-import { allExtraDirs, extraDirs } from "./runtime-settings";
+import { registeredLibraryDirs } from "./libraries";
 import { prisma } from "./prisma";
 
 // ── Path safety ─────────────────────────────────────────────────────
@@ -24,9 +24,9 @@ export function isInsideAllowed(target: string, dirs: string[]): boolean {
   });
 }
 
-/** Every directory the app may read: env-configured + UI-added folders. */
+/** Every directory the app may read: downloads + registered libraries. */
 export function allowedDirsRuntime(): string[] {
-  return [...allAllowedDirs(), ...allExtraDirs()];
+  return [...allAllowedDirs(), ...registeredLibraryDirs()];
 }
 
 /** Resolve a library item's path, verifying it is still allowed & exists. */
@@ -117,16 +117,32 @@ interface ScanTarget {
   dir: string;
   type: "video" | "audio";
   source: "download" | "nas";
+  category: string;
+  libraryId: string | null;
 }
 
-function scanTargets(): ScanTarget[] {
+/**
+ * Scan targets = the app's own download folders + every registered
+ * MediaLibrary. Raw mounted volumes are NOT scanned; only assigned,
+ * categorized libraries are indexed (Jellyfin-style).
+ */
+async function scanTargets(): Promise<ScanTarget[]> {
   const t: ScanTarget[] = [];
-  if (config.downloadVideoPath) t.push({ dir: config.downloadVideoPath, type: "video", source: "download" });
-  if (config.downloadAudioPath) t.push({ dir: config.downloadAudioPath, type: "audio", source: "download" });
-  for (const d of config.mediaVideoPaths) t.push({ dir: d, type: "video", source: "nas" });
-  for (const d of config.mediaAudioPaths) t.push({ dir: d, type: "audio", source: "nas" });
-  for (const d of extraDirs("video")) t.push({ dir: d, type: "video", source: "nas" });
-  for (const d of extraDirs("audio")) t.push({ dir: d, type: "audio", source: "nas" });
+  if (config.downloadVideoPath)
+    t.push({ dir: config.downloadVideoPath, type: "video", source: "download", category: "downloads", libraryId: null });
+  if (config.downloadAudioPath)
+    t.push({ dir: config.downloadAudioPath, type: "audio", source: "download", category: "downloads", libraryId: null });
+
+  const libraries = await prisma.mediaLibrary.findMany();
+  for (const lib of libraries) {
+    t.push({
+      dir: lib.path,
+      type: lib.kind as "video" | "audio",
+      source: "nas",
+      category: lib.category,
+      libraryId: lib.id,
+    });
+  }
   return t;
 }
 
@@ -162,13 +178,16 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
 
   try {
     const seen = new Set<string>();
-    for (const target of scanTargets()) {
+    for (const target of await scanTargets()) {
       for await (const file of walk(target.dir)) {
         const ext = path.extname(file).toLowerCase();
         const valid = target.type === "video" ? VIDEO_EXTS.has(ext) : AUDIO_EXTS.has(ext);
         if (!valid) continue;
         scanned++;
         seen.add(file);
+
+        // Relative subfolder within the library (for the folder view).
+        const folder = path.relative(target.dir, path.dirname(file));
 
         let stat: fs.Stats;
         try {
@@ -181,23 +200,38 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
         const mtime = stat.mtime;
 
         if (existing) {
-          // Update size/mtime cheaply; skip re-probe unless file changed.
-          if (existing.mtime.getTime() !== mtime.getTime() || Number(existing.size) !== stat.size) {
+          // Keep size/mtime and library metadata in sync cheaply.
+          if (
+            existing.mtime.getTime() !== mtime.getTime() ||
+            Number(existing.size) !== stat.size ||
+            existing.category !== target.category ||
+            existing.libraryId !== target.libraryId ||
+            existing.folder !== folder
+          ) {
             await prisma.libraryItem.update({
               where: { id: existing.id },
-              data: { size: BigInt(stat.size), mtime },
+              data: {
+                size: BigInt(stat.size),
+                mtime,
+                category: target.category,
+                libraryId: target.libraryId,
+                folder,
+              },
             });
           }
           continue;
         }
 
-        const probe = target.type === "video" ? await runProbe(file) : await runProbe(file);
+        const probe = target.type === "video" ? await runProbe(file) : {};
         await prisma.libraryItem.create({
           data: {
             path: file,
             title: path.basename(file, ext),
             type: target.type,
             source: target.source,
+            category: target.category,
+            folder,
+            libraryId: target.libraryId,
             size: BigInt(stat.size),
             duration: probe.duration ?? null,
             width: probe.width ?? null,
@@ -216,7 +250,14 @@ export async function scanLibrary(): Promise<{ scanned: number; added: number; r
     if (gone.length) {
       await prisma.libraryItem.deleteMany({ where: { id: { in: gone.map((g) => g.id) } } });
     }
-    return { scanned, added, removed: gone.length };
+
+    // Remove orphaned NAS items that belong to no registered library.
+    // (Cleans up rows left by the pre-libraries auto-scan on upgrade.)
+    const orphaned = await prisma.libraryItem.deleteMany({
+      where: { source: "nas", libraryId: null },
+    });
+
+    return { scanned, added, removed: gone.length + orphaned.count };
   } finally {
     scanning = false;
   }
@@ -244,6 +285,7 @@ export async function registerDownloadedFile(
         title: path.basename(filePath, ext),
         type,
         source: "download",
+        category: "downloads",
         size: BigInt(stat.size),
         duration: probe.duration ?? null,
         width: probe.width ?? null,

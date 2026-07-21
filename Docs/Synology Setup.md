@@ -154,12 +154,22 @@ You should see:
 
 ---
 
-## 7. First login
+## 7. First login & assigning libraries
 
 1. Open `http://YOUR-NAS-IP:8080` in a browser.
 2. Sign in with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` you set.
-3. Go to **Settings → Library Scan → Scan now** to index your mounted
-   libraries. Large libraries take a few minutes on first scan.
+3. **Assign your libraries** (this is the important step — mounting a share
+   does *not* show any files until you assign it, exactly like Jellyfin):
+   - Go to **Settings → Media Libraries → Add a library**.
+   - Click **Browse mounted volumes…**, drill into a subfolder — e.g.
+     `/media/videos/Movies` or `/media/videos/Events` — and **Use this folder**.
+   - Pick a category: **Movies**, **TV Shows**, **Videos**, or **Music**.
+   - Click **Add Library**. It scans automatically.
+   - Repeat for each folder you want (e.g. Movies → Movies, Wedding clips →
+     Videos, your music share → Music).
+4. Each category then appears in its left-menu page (Movies / TV Shows /
+   Videos / Music) as a browsable **folder view**. Only real media files are
+   shown — other files (`.txt`, `.jpg`, `.nfo`, …) are ignored.
 
 The dashboard's **Storage** and **System Health** read live data from the
 NAS kernel (volume usage via `statfs`, CPU/RAM/network/temperature via
@@ -167,15 +177,40 @@ NAS kernel (volume usage via `statfs`, CPU/RAM/network/temperature via
 
 ---
 
-## 8. Adding more media folders later
+## 8. GPU-accelerated playback (optional)
 
-**From the UI (recommended):**
+Files whose codec the browser supports (most H.264 MP4) stream **directly**
+with no transcoding — the fastest, zero-CPU path, with seeking. Incompatible
+files (e.g. H.265/HEVC in MKV) or a chosen lower quality are transcoded on the
+fly. To offload that to a GPU:
 
-1. Mount the share into the container: add another line under `volumes:` in
-   `docker-compose.synology.yml`, e.g.
+**Intel / AMD (VAAPI or QSV):**
+
+1. Uncomment the `devices:` block in `docker-compose.synology.yml`:
 
    ```yaml
-   - /volume1/photo/HomeVideos:/media/homevideos:ro
+   devices:
+     - /dev/dri:/dev/dri
+   ```
+
+2. Recreate the container, then set **Settings → Playback & Performance** to
+   **VAAPI** (or **Intel QSV**). Or set `FFMPEG_HWACCEL: "vaapi"` in the compose
+   file.
+
+**NVIDIA (NVENC):** requires the NVIDIA Container Runtime (not available on
+most Synology models). Where supported, add the runtime and select **NVIDIA
+(NVENC)** in Settings.
+
+Leave it on **Off (CPU)** if unsure — it always works.
+
+---
+
+## 9. Adding more media folders later
+
+1. Mount the new share into the container — add a line under `volumes:`:
+
+   ```yaml
+   - /volume1/photo/HomeVideos:/media/videos-home:ro
    ```
 
 2. Recreate the container:
@@ -184,13 +219,12 @@ NAS kernel (volume usage via `statfs`, CPU/RAM/network/temperature via
    sudo docker compose -f docker-compose.synology.yml up -d
    ```
 
-3. In the app go to **Settings → Media Folders**, choose *video* or *audio*,
-   enter the **container path** (`/media/homevideos`) and click **Add
-   Folder**, then run a scan.
+3. In the app: **Settings → Media Libraries → Add a library**, browse to the
+   new path, tag it, and add it.
 
 ---
 
-## 9. Updating SidraMedia
+## 10. Updating SidraMedia
 
 ```bash
 cd /volume1/docker/sidra-media/app
@@ -203,7 +237,7 @@ Your database, thumbnails, users and settings persist in
 
 ---
 
-## 10. Optional: HTTPS with a nice URL (DSM Reverse Proxy)
+## 11. Optional: HTTPS with a nice URL (DSM Reverse Proxy)
 
 1. **Control Panel → Login Portal → Advanced → Reverse Proxy → Create**:
    - Source: `HTTPS`, hostname `sidra.your-domain.com`, port `443`
@@ -216,7 +250,7 @@ Now the app is available at `https://sidra.your-domain.com`.
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
@@ -241,7 +275,7 @@ sudo docker image prune -f               # clean old build layers
 
 ---
 
-## 12. Autostart
+## 13. Autostart
 
 Containers started with `restart: unless-stopped` (already set in the
 compose file) start automatically when the NAS boots — nothing else to do.

@@ -1,43 +1,31 @@
 import { z } from "zod";
 import { ok, fail, withAuth, withAdmin } from "@/lib/api";
 import { config } from "@/lib/config";
-import {
-  addExtraDir,
-  removeExtraDir,
-  extraDirs,
-  loadExtraDirs,
-} from "@/lib/runtime-settings";
+import { CATEGORIES, browseRoots } from "@/lib/libraries";
+import { getAppSettings, setAppSettings, type HwAccel } from "@/lib/app-settings";
 
-// Runtime info: env-configured folders (read-only) + UI-managed folders.
+// Runtime info: download paths, browse roots, categories, playback settings.
 export const GET = withAuth(async (_req, user) => {
-  await loadExtraDirs();
+  const settings = await getAppSettings();
   return ok({
     role: user.role,
     nasName: config.nasName,
     downloadVideoPath: config.downloadVideoPath,
     downloadAudioPath: config.downloadAudioPath,
-    mediaVideoPaths: config.mediaVideoPaths,
-    mediaAudioPaths: config.mediaAudioPaths,
-    extraVideoDirs: extraDirs("video"),
-    extraAudioDirs: extraDirs("audio"),
+    browseRoots: browseRoots(),
+    categories: CATEGORIES,
+    playback: settings,
   });
 });
 
-const folderAction = z.object({
-  action: z.enum(["add", "remove"]),
-  kind: z.enum(["video", "audio"]),
-  path: z.string().min(1),
+const patchSchema = z.object({
+  hwAccel: z.enum(["off", "auto", "nvenc", "vaapi", "qsv"]).optional(),
 });
 
-// Admin: add or remove a UI-managed media folder.
+// Admin: update playback settings (e.g. hardware acceleration).
 export const POST = withAdmin(async (req) => {
-  const body = folderAction.safeParse(await req.json().catch(() => null));
+  const body = patchSchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return fail("Invalid request");
-
-  const { action, kind, path: dir } = body.data;
-  const result =
-    action === "add" ? await addExtraDir(kind, dir) : await removeExtraDir(kind, dir);
-
-  if (!result.ok) return fail(result.message || "Folder change failed");
-  return ok({ kind, dirs: result.dirs });
+  const next = await setAppSettings(body.data as { hwAccel?: HwAccel });
+  return ok({ playback: next });
 });

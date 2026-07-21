@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useTheme } from "next-themes";
 import {
-  AlertTriangle,
   Bell,
   CheckCircle2,
   ChevronDown,
@@ -21,11 +19,10 @@ import {
   User as UserIcon,
   XCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { apiSend } from "@/lib/client-api";
 import { useUIStore } from "@/lib/ui-store";
 import { useMounted } from "@/hooks/use-mounted";
-import { activeDownloads, notifications, type AppNotification } from "@/lib/mock-data";
+import { useDownloads, useNotifications, type AppNotification } from "@/hooks/use-dashboard";
 import type { CurrentUser } from "@/lib/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -38,12 +35,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/* ------------------------------------------------------------------ */
-
 const notificationIcon: Record<AppNotification["kind"], React.ReactNode> = {
   success: <CheckCircle2 className="h-4 w-4 text-success" />,
   info: <Info className="h-4 w-4 text-accent" />,
-  warning: <AlertTriangle className="h-4 w-4 text-warning" />,
+  warning: <Info className="h-4 w-4 text-warning" />,
   error: <XCircle className="h-4 w-4 text-danger" />,
 };
 
@@ -51,12 +46,10 @@ function IconButton({
   label,
   onClick,
   children,
-  badge,
 }: {
   label: string;
   onClick?: () => void;
   children: React.ReactNode;
-  badge?: number;
 }) {
   return (
     <Tooltip>
@@ -67,11 +60,6 @@ function IconButton({
           className="relative rounded-xl border border-transparent p-2.5 text-muted transition-all hover:border-stroke hover:bg-surface-2 hover:text-foreground"
         >
           {children}
-          {badge !== undefined && badge > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-primary to-secondary px-1 text-[9px] font-bold text-white shadow-lg shadow-primary/40">
-              {badge}
-            </span>
-          )}
         </button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
@@ -83,7 +71,6 @@ function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
   const isDark = !mounted || resolvedTheme === "dark";
-
   return (
     <IconButton
       label={isDark ? "Switch to light mode" : "Switch to dark mode"}
@@ -95,8 +82,9 @@ function ThemeToggle() {
 }
 
 function NotificationsMenu() {
-  const [items, setItems] = useState(notifications);
-  const unread = items.filter((n) => n.unread).length;
+  const { data } = useNotifications();
+  const items = data?.items ?? [];
+  const unread = items.length;
 
   return (
     <DropdownMenu>
@@ -104,13 +92,13 @@ function NotificationsMenu() {
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
             <button
-              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+              aria-label={`Notifications${unread ? ` (${unread})` : ""}`}
               className="relative rounded-xl border border-transparent p-2.5 text-muted transition-all hover:border-stroke hover:bg-surface-2 hover:text-foreground data-[state=open]:border-stroke data-[state=open]:bg-surface-2 data-[state=open]:text-foreground"
             >
               <Bell className="h-[18px] w-[18px]" />
               {unread > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-primary to-secondary px-1 text-[9px] font-bold text-white shadow-lg shadow-primary/40">
-                  {unread}
+                  {unread > 9 ? "9+" : unread}
                 </span>
               )}
             </button>
@@ -120,48 +108,74 @@ function NotificationsMenu() {
       </Tooltip>
 
       <DropdownMenuContent align="end" className="w-[340px] p-0">
-        <div className="flex items-center justify-between border-b border-stroke px-4 py-3">
+        <div className="border-b border-stroke px-4 py-3">
           <p className="text-sm font-semibold text-foreground">Notifications</p>
-          <button
-            onClick={() => setItems((all) => all.map((n) => ({ ...n, unread: false })))}
-            className="text-xs text-primary transition-opacity hover:opacity-80"
-          >
-            Mark all read
-          </button>
         </div>
         <div className="max-h-[360px] overflow-y-auto p-1.5">
-          {items.map((n) => (
-            <div
-              key={n.id}
-              className={cn(
-                "flex gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-3",
-                n.unread && "bg-primary/5"
-              )}
-            >
-              <span className="mt-0.5 shrink-0">{notificationIcon[n.kind]}</span>
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium text-foreground">{n.title}</p>
-                <p className="mt-0.5 line-clamp-2 text-xs text-muted">{n.body}</p>
-                <p className="mt-1 text-[10px] text-muted-2">{n.time}</p>
-              </div>
-              {n.unread && <span className="ml-auto mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
-            </div>
-          ))}
+          {items.length === 0 ? (
+            <p className="px-3 py-10 text-center text-sm text-muted">You&apos;re all caught up.</p>
+          ) : (
+            items.map((n) => {
+              const inner = (
+                <>
+                  <span className="mt-0.5 shrink-0">{notificationIcon[n.kind]}</span>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-foreground">{n.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-muted">{n.body}</p>
+                    <p className="mt-1 text-[10px] text-muted-2">{n.time}</p>
+                  </div>
+                </>
+              );
+              return n.libraryId ? (
+                <Link
+                  key={n.id}
+                  href={`/watch/${n.libraryId}`}
+                  className="flex gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-3"
+                >
+                  {inner}
+                </Link>
+              ) : (
+                <div key={n.id} className="flex gap-3 rounded-xl px-3 py-2.5">
+                  {inner}
+                </div>
+              );
+            })
+          )}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
+function DownloadsBadge() {
+  const { data: downloads = [] } = useDownloads();
+  const active = downloads.filter((d) => d.status === "downloading" || d.status === "queued").length;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link href="/downloads" aria-label={`Downloads${active ? ` (${active} active)` : ""}`}>
+          <span className="relative block rounded-xl border border-transparent p-2.5 text-muted transition-all hover:border-stroke hover:bg-surface-2 hover:text-foreground">
+            <DownloadCloud className="h-[18px] w-[18px]" />
+            {active > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-primary to-secondary px-1 text-[9px] font-bold text-white shadow-lg shadow-primary/40">
+                {active}
+              </span>
+            )}
+          </span>
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent>Downloads</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ProfileMenu({ user }: { user: CurrentUser }) {
   const router = useRouter();
-
   async function logout() {
     await apiSend("POST", "/api/auth/logout").catch(() => {});
     router.replace("/login");
     router.refresh();
   }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -175,15 +189,12 @@ function ProfileMenu({ user }: { user: CurrentUser }) {
             </AvatarFallback>
           </Avatar>
           <div className="hidden text-left sm:block">
-            <p className="text-[13px] font-semibold leading-tight text-foreground">
-              {user.username}
-            </p>
+            <p className="text-[13px] font-semibold leading-tight text-foreground">{user.username}</p>
             <p className="text-[10px] capitalize leading-tight text-muted-2">{user.role}</p>
           </div>
           <ChevronDown className="hidden h-3.5 w-3.5 text-muted-2 sm:block" />
         </button>
       </DropdownMenuTrigger>
-
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel>
           <p className="text-sm font-medium text-foreground">{user.username}</p>
@@ -191,14 +202,16 @@ function ProfileMenu({ user }: { user: CurrentUser }) {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push("/settings")}>
-          <UserIcon className="h-4 w-4" /> Profile
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => router.push("/settings")}>
-          <Settings className="h-4 w-4" /> Settings
+          <UserIcon className="h-4 w-4" /> Settings
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => router.push("/analytics")}>
-          <HelpCircle className="h-4 w-4" /> What&apos;s new
+          <HelpCircle className="h-4 w-4" /> Analytics
         </DropdownMenuItem>
+        {user.role === "admin" && (
+          <DropdownMenuItem onSelect={() => router.push("/users")}>
+            <Settings className="h-4 w-4" /> Manage users
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="danger" onSelect={logout}>
           <LogOut className="h-4 w-4" /> Log out
@@ -207,8 +220,6 @@ function ProfileMenu({ user }: { user: CurrentUser }) {
     </DropdownMenu>
   );
 }
-
-/* ------------------------------------------------------------------ */
 
 export function Topbar({ user }: { user: CurrentUser }) {
   const { setCommandOpen, setMobileNavOpen } = useUIStore();
@@ -224,36 +235,22 @@ export function Topbar({ user }: { user: CurrentUser }) {
           <Menu className="h-5 w-5" />
         </button>
 
-        {/* Search / command palette trigger */}
         <button
           onClick={() => setCommandOpen(true)}
           className="group flex h-10 flex-1 items-center gap-3 rounded-xl border border-stroke bg-surface-2/60 px-3.5 text-left transition-all hover:border-stroke-strong hover:bg-surface-2 sm:max-w-md"
           aria-label="Search (Ctrl+K)"
         >
           <Search className="h-4 w-4 shrink-0 text-muted-2 transition-colors group-hover:text-muted" />
-          <span className="flex-1 truncate text-sm text-muted-2">
-            Search movies, shows, music, playlists…
-          </span>
+          <span className="flex-1 truncate text-sm text-muted-2">Search your library, pages, actions…</span>
           <kbd className="hidden shrink-0 items-center gap-1 rounded-md border border-stroke bg-surface-3 px-1.5 py-0.5 font-sans text-[10px] font-medium text-muted-2 sm:flex">
             ⌘K
           </kbd>
         </button>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
-          <Link href="/downloads" aria-label={`Downloads (${activeDownloads.length} active)`}>
-            <span className="relative block rounded-xl border border-transparent p-2.5 text-muted transition-all hover:border-stroke hover:bg-surface-2 hover:text-foreground">
-              <DownloadCloud className="h-[18px] w-[18px]" />
-              {activeDownloads.length > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-primary to-secondary px-1 text-[9px] font-bold text-white shadow-lg shadow-primary/40">
-                  {activeDownloads.length}
-                </span>
-              )}
-            </span>
-          </Link>
-
+          <DownloadsBadge />
           <NotificationsMenu />
           <ThemeToggle />
-
           <div className="mx-1 hidden h-6 w-px bg-stroke sm:block" />
           <ProfileMenu user={user} />
         </div>

@@ -2,11 +2,11 @@
 
 import { memo } from "react";
 import { motion } from "framer-motion";
-import { CalendarClock, CloudMoon, DownloadCloud, HardDrive } from "lucide-react";
+import { CalendarClock, DownloadCloud, Film, HardDrive } from "lucide-react";
 import { useClock } from "@/hooks/use-clock";
 import { useStorageInfo } from "@/hooks/use-system";
+import { useDashboard } from "@/hooks/use-dashboard";
 import { formatBytes } from "@/lib/utils";
-import { demoWeather, downloadsPerDay } from "@/lib/mock-data";
 
 const PARTICLES = [
   { left: "8%", top: "22%", size: 3, delay: 0 },
@@ -41,11 +41,16 @@ function HeroChip({
   );
 }
 
-/** Large hero card — animated aurora gradient, floating particles, live clock. */
+/** Large hero card — animated aurora gradient, live clock, real library facts. */
 export const Hero = memo(function Hero({ username }: { username: string }) {
   const clock = useClock();
   const { data: storage } = useStorageInfo();
-  const todayDownloads = downloadsPerDay[downloadsPerDay.length - 1].downloads;
+  const { data: dash } = useDashboard();
+
+  const todayDownloads = dash?.activity?.at(-1)
+    ? dash.activity[dash.activity.length - 1].videos + dash.activity[dash.activity.length - 1].audios
+    : 0;
+  const libraryCount = dash ? dash.stats.totalVideos + dash.stats.totalAudios : 0;
 
   return (
     <motion.section
@@ -55,7 +60,6 @@ export const Hero = memo(function Hero({ username }: { username: string }) {
       aria-label="Welcome"
       className="relative overflow-hidden rounded-3xl border border-stroke bg-[#0a0716]"
     >
-      {/* Animated aurora layers */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
         <div className="animate-aurora absolute -left-1/4 -top-1/2 h-[140%] w-[80%] rounded-full bg-[radial-gradient(closest-side,rgba(124,58,237,0.45),transparent)] blur-3xl" />
         <div
@@ -67,19 +71,11 @@ export const Hero = memo(function Hero({ username }: { username: string }) {
           style={{ animationDelay: "-3.5s" }}
         />
         <div className="bg-grid-pattern absolute inset-0 opacity-60" />
-
-        {/* Particles */}
         {PARTICLES.map((p, i) => (
           <span
             key={i}
             className="animate-float absolute rounded-full bg-white/50 shadow-[0_0_8px_rgba(167,139,250,0.9)]"
-            style={{
-              left: p.left,
-              top: p.top,
-              width: p.size,
-              height: p.size,
-              animationDelay: `${p.delay}s`,
-            }}
+            style={{ left: p.left, top: p.top, width: p.size, height: p.size, animationDelay: `${p.delay}s` }}
           />
         ))}
       </div>
@@ -106,7 +102,7 @@ export const Hero = memo(function Hero({ username }: { username: string }) {
           transition={{ delay: 0.25, duration: 0.5 }}
           className="mt-2 max-w-xl text-sm text-white/65 sm:text-base"
         >
-          Manage your media library with AI-powered organization.
+          Here&apos;s what&apos;s happening across your media server today.
         </motion.p>
 
         <motion.div
@@ -121,23 +117,19 @@ export const Hero = memo(function Hero({ username }: { username: string }) {
             secondary={clock?.date ?? "Loading…"}
           />
           <HeroChip
-            icon={<CloudMoon className="h-4 w-4" />}
-            primary={`${demoWeather.tempC}°C`}
-            secondary={`${demoWeather.condition}, ${demoWeather.city}`}
+            icon={<Film className="h-4 w-4" />}
+            primary={`${libraryCount.toLocaleString()} items`}
+            secondary="in your library"
           />
           <HeroChip
             icon={<HardDrive className="h-4 w-4" />}
             primary={storage ? `${formatBytes(storage.freeBytes, 1)} free` : "— free"}
-            secondary={
-              storage
-                ? `of ${formatBytes(storage.totalBytes, 1)} on ${storage.nasName}`
-                : "checking storage…"
-            }
+            secondary={storage ? `of ${formatBytes(storage.totalBytes, 1)} on ${storage.nasName}` : "checking…"}
           />
           <HeroChip
             icon={<DownloadCloud className="h-4 w-4" />}
-            primary={`${todayDownloads} downloads`}
-            secondary="completed today"
+            primary={`${todayDownloads} download${todayDownloads === 1 ? "" : "s"}`}
+            secondary="in the last 24h"
           />
         </motion.div>
       </div>
