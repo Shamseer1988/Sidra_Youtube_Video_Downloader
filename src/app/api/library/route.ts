@@ -49,6 +49,7 @@ export const GET = withAuth(async (req, user) => {
         liked: st?.liked ?? false,
         position: st?.position ?? 0,
         finished: st?.finished ?? false,
+        playedAt: st?.playedAt ?? null,
       },
     };
   });

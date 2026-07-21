@@ -14,6 +14,7 @@ export interface MediaState {
   liked: boolean;
   position: number;
   finished: boolean;
+  playedAt?: string | null;
 }
 
 export interface AudioTrack {
