@@ -98,7 +98,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
           <p className="text-xs text-muted-2">Playing in the bar below — it keeps going as you browse.</p>
         </div>
       ) : (
-        <VideoPlayer item={item} startAt={state.position > 3 ? state.position : 0} />
+        <VideoPlayer item={item} startAt={!state.finished && state.position > 3 ? state.position : 0} />
       )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

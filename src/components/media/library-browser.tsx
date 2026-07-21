@@ -12,7 +12,7 @@ import type { LibraryItem } from "@/lib/types";
 
 interface Params {
   type?: "video" | "audio";
-  filter?: "favorites" | "watchLater";
+  filter?: "favorites" | "watchLater" | "continue";
   sort?: string;
 }
 

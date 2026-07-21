@@ -3,13 +3,35 @@
 import { memo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Play } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Play, X } from "lucide-react";
 import { formatDuration } from "@/lib/utils";
+import { apiSend } from "@/lib/client-api";
 import { useDashboard } from "@/hooks/use-dashboard";
 import { MediaThumb } from "@/components/media/media-thumb";
 import type { LibraryItem } from "@/lib/types";
 
 function WatchCard({ item, index }: { item: LibraryItem; index: number }) {
+  const qc = useQueryClient();
+
+  // Dismiss from the shelf: mark finished so it drops out of the
+  // position>0 && !finished query, without deleting the item itself.
+  async function dismiss(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    qc.setQueryData(["stats"], (prev: unknown) => {
+      const d = prev as { continueWatching?: LibraryItem[] } | undefined;
+      if (!d?.continueWatching) return prev;
+      return { ...d, continueWatching: d.continueWatching.filter((x) => x.id !== item.id) };
+    });
+    try {
+      await apiSend("PATCH", `/api/library/${item.id}/state`, { finished: true });
+    } catch {
+      /* optimistic; refetch will reconcile */
+    }
+    qc.invalidateQueries({ queryKey: ["stats"] });
+  }
+
   const progress =
     item.duration && item.state?.position
       ? Math.min(100, (item.state.position / item.duration) * 100)
@@ -53,6 +75,15 @@ function WatchCard({ item, index }: { item: LibraryItem; index: number }) {
           </div>
         </div>
       </Link>
+
+      <button
+        onClick={dismiss}
+        aria-label="Remove from Continue Watching"
+        title="Remove from Continue Watching"
+        className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white/80 opacity-0 backdrop-blur-md ring-1 ring-white/20 transition-all hover:bg-black/80 hover:text-white group-hover:opacity-100"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </motion.article>
   );
 }
@@ -69,7 +100,7 @@ export const ContinueWatching = memo(function ContinueWatching() {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold text-foreground">Continue Watching</h2>
         <Link
-          href="/watch-later"
+          href="/continue-watching"
           className="rounded-lg border border-stroke px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-primary/40 hover:text-foreground"
         >
           View All
