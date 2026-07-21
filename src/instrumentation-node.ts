@@ -11,9 +11,9 @@ export async function onStartup() {
       where: { status: { in: ["queued", "downloading"] } },
       data: { status: "failed", error: "Interrupted by server restart" },
     });
-    // Warm the UI-managed media folder cache used by path-safety checks.
-    const { loadExtraDirs } = await import("./lib/runtime-settings");
-    await loadExtraDirs();
+    // Warm the registered-library path cache used by path-safety checks.
+    const { loadLibraries } = await import("./lib/libraries");
+    await loadLibraries();
   } catch {
     // DB may not be migrated yet on very first boot — ignore.
   }

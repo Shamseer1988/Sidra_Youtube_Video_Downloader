@@ -6,19 +6,12 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {
-  ArrowRight,
-  FolderSearch,
-  FolderTree,
-  ImagePlus,
-  Link2,
-  ListMusic,
-  Sparkles,
-  Upload,
-  Youtube,
-  type LucideIcon,
-} from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, BarChart3, FolderPlus, Link2, RefreshCw, Users, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiSend } from "@/lib/client-api";
+import { useToast } from "@/components/providers/toast-provider";
+import { useUser } from "@/components/providers/user-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,26 +21,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-/* ------------------------------------------------------------------ */
-/*  Download-from-URL dialog (react-hook-form + zod)                   */
-/* ------------------------------------------------------------------ */
-
 const downloadSchema = z.object({
-  url: z
-    .string()
-    .min(1, "Paste a link to download")
-    .url("That doesn't look like a valid URL"),
+  url: z.string().min(1, "Paste a link to download").url("That doesn't look like a valid URL"),
 });
-
 type DownloadForm = z.infer<typeof downloadSchema>;
 
-function DownloadUrlDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+function DownloadUrlDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const router = useRouter();
   const {
     register,
@@ -66,20 +45,14 @@ function DownloadUrlDialog({
         <DialogHeader>
           <DialogTitle>Download from URL</DialogTitle>
           <DialogDescription>
-            Paste a YouTube, Vimeo or direct link — SidraMedia will fetch the best quality
-            automatically.
+            Paste a YouTube, Vimeo or direct link — SidraMedia fetches the best quality.
           </DialogDescription>
         </DialogHeader>
-
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label htmlFor="download-url" className="sr-only">
-              Media URL
-            </label>
             <div className="relative">
               <Link2 className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
               <input
-                id="download-url"
                 placeholder="https://youtube.com/watch?v=…"
                 autoFocus
                 {...register("url")}
@@ -94,7 +67,7 @@ function DownloadUrlDialog({
             )}
           </div>
           <Button type="submit" className="w-full" size="lg">
-            Start Download <ArrowRight className="h-4 w-4" />
+            Continue <ArrowRight className="h-4 w-4" />
           </Button>
         </form>
       </DialogContent>
@@ -102,42 +75,45 @@ function DownloadUrlDialog({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Actions grid                                                       */
-/* ------------------------------------------------------------------ */
-
-interface QuickAction {
+interface Action {
   label: string;
   description: string;
   icon: LucideIcon;
-  href?: string;
-  featured?: boolean;
-  dialog?: boolean;
+  onClick: () => void;
+  adminOnly?: boolean;
+  loading?: boolean;
 }
 
-const actions: QuickAction[] = [
-  { label: "Download from URL", description: "Paste YouTube, Vimeo or any link", icon: Link2, featured: true, dialog: true },
-  { label: "Bulk Download", description: "Add multiple links", icon: ListMusic, href: "/downloads" },
-  { label: "Import Playlist", description: "From YouTube or other sources", icon: ListMusic, href: "/playlists" },
-  { label: "Import Channel", description: "YouTube channel", icon: Youtube, href: "/downloads" },
-  { label: "Upload Media", description: "From your device", icon: Upload, href: "/movies" },
-  { label: "Scan NAS", description: "Index new files on SIDRA-NAS", icon: FolderSearch, href: "/nas" },
-  { label: "Scan Folder", description: "Watch a specific directory", icon: FolderTree, href: "/nas" },
-  { label: "Generate Thumbnails", description: "Rebuild preview images", icon: ImagePlus, href: "/nas" },
-  { label: "AI Organize Library", description: "Auto-tag, rename & sort media", icon: Sparkles, href: "/analytics" },
-];
-
-/** Quick action launcher panel. */
+/** Quick action launcher — real, working actions only. */
 export const QuickActions = memo(function QuickActions() {
   const router = useRouter();
+  const toast = useToast();
+  const user = useUser();
+  const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [featured, ...rest] = actions;
+
+  const scan = useMutation({
+    mutationFn: () => apiSend<{ scanned: number; added: number; removed: number }>("POST", "/api/library/scan"),
+    onSuccess: (res) => {
+      toast(`Scan complete — ${res.added} added, ${res.removed} removed`, "success");
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      qc.invalidateQueries({ queryKey: ["library"] });
+      qc.invalidateQueries({ queryKey: ["libraries"] });
+    },
+    onError: () => toast("Scan failed", "error"),
+  });
+
+  const actions: Action[] = [
+    { label: "Scan Libraries", description: "Re-index all media folders", icon: RefreshCw, onClick: () => scan.mutate(), loading: scan.isPending },
+    { label: "Add Library", description: "Assign a NAS folder", icon: FolderPlus, onClick: () => router.push("/settings") },
+    { label: "Analytics", description: "Usage & storage insights", icon: BarChart3, onClick: () => router.push("/analytics") },
+    { label: "Manage Users", description: "Accounts & access", icon: Users, onClick: () => router.push("/users"), adminOnly: true },
+  ];
 
   return (
     <section aria-label="Quick actions" className="glass-card flex h-full flex-col p-5">
       <h2 className="mb-4 text-base font-semibold text-foreground">Quick Actions</h2>
 
-      {/* Featured action */}
       <motion.button
         whileHover={{ scale: 1.015 }}
         whileTap={{ scale: 0.985 }}
@@ -146,41 +122,38 @@ export const QuickActions = memo(function QuickActions() {
       >
         <span className="absolute inset-0 bg-[radial-gradient(120%_120%_at_100%_0%,rgba(255,255,255,0.18),transparent_50%)]" />
         <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur">
-          <featured.icon className="h-5 w-5" />
+          <Link2 className="h-5 w-5" />
         </span>
         <span className="relative min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-white">{featured.label}</span>
-          <span className="block truncate text-xs text-white/70">{featured.description}</span>
+          <span className="block text-sm font-semibold text-white">Download from URL</span>
+          <span className="block truncate text-xs text-white/70">Paste YouTube, Vimeo or any link</span>
         </span>
         <ArrowRight className="relative h-4 w-4 shrink-0 text-white/80 transition-transform duration-300 group-hover:translate-x-1" />
       </motion.button>
 
-      {/* Secondary actions */}
       <div className="mt-3 grid flex-1 grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {rest.map((action) => (
-          <motion.button
-            key={action.label}
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => (action.href ? router.push(action.href) : setDialogOpen(true))}
-            className={cn(
-              "group flex items-center gap-3 rounded-2xl border border-stroke bg-surface-2/60 p-3 text-left transition-colors",
-              "hover:border-primary/30 hover:bg-surface-2"
-            )}
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stroke bg-surface-3 text-muted transition-colors group-hover:border-primary/30 group-hover:text-primary">
-              <action.icon className="h-4 w-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-[13px] font-medium text-foreground">
-                {action.label}
+        {actions
+          .filter((a) => !a.adminOnly || user.role === "admin")
+          .map((action) => (
+            <motion.button
+              key={action.label}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={action.onClick}
+              disabled={action.loading}
+              className={cn(
+                "group flex items-center gap-3 rounded-2xl border border-stroke bg-surface-2/60 p-3 text-left transition-colors hover:border-primary/30 hover:bg-surface-2 disabled:opacity-60"
+              )}
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stroke bg-surface-3 text-muted transition-colors group-hover:border-primary/30 group-hover:text-primary">
+                <action.icon className={cn("h-4 w-4", action.loading && "animate-spin")} />
               </span>
-              <span className="block truncate text-[11px] text-muted-2">
-                {action.description}
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-medium text-foreground">{action.label}</span>
+                <span className="block truncate text-[11px] text-muted-2">{action.description}</span>
               </span>
-            </span>
-          </motion.button>
-        ))}
+            </motion.button>
+          ))}
       </div>
 
       <DownloadUrlDialog open={dialogOpen} onOpenChange={setDialogOpen} />

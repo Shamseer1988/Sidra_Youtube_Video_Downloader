@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const AnalyticsOverview = dynamic(
   () => import("@/components/dashboard/analytics").then((m) => m.AnalyticsOverview),
-  { loading: () => <Skeleton className="h-[220px] rounded-2xl" /> }
+  { loading: () => <Skeleton className="h-[110px] rounded-2xl" /> }
 );
 const AnalyticsCharts = dynamic(
   () => import("@/components/dashboard/analytics").then((m) => m.AnalyticsCharts),
@@ -22,7 +22,7 @@ export default function AnalyticsPage() {
     <div className="mx-auto max-w-[1600px] space-y-5">
       <PageHeader
         title="Analytics"
-        subtitle="Downloads, storage, bandwidth and watch behaviour across your library"
+        subtitle="Downloads, storage and watch activity across your media server"
       />
       <AnalyticsOverview />
       <AnalyticsCharts />

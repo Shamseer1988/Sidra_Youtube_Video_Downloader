@@ -55,14 +55,34 @@ model Download {
   @@index([createdAt])
 }
 
-// A playable file on disk — either downloaded by the app or already
-// present on the NAS media folders. Discovered by the library scanner.
+// A media library: a NAS subfolder the user has assigned & categorized
+// (Jellyfin-style). Only registered libraries are scanned — the raw
+// mounted volumes are just browse roots and show nothing until assigned.
+model MediaLibrary {
+  id        String   @id @default(cuid())
+  name      String
+  path      String   @unique // absolute path inside the container
+  category  String   // "movies" | "tv" | "videos" | "music"
+  kind      String   // "video" | "audio"
+  createdAt DateTime @default(now())
+
+  items     LibraryItem[]
+
+  @@index([category])
+}
+
+// A playable file on disk — either downloaded by the app or discovered
+// inside a registered MediaLibrary by the scanner.
 model LibraryItem {
   id         String   @id @default(cuid())
   path       String   @unique
   title      String
   type       String   // "video" | "audio"
   source     String   @default("nas") // "download" | "nas"
+  category   String   @default("downloads") // library category or "downloads"
+  folder     String   @default("") // relative subfolder within its library
+  libraryId  String?
+  library    MediaLibrary? @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   size       BigInt   @default(0)
   duration   Float?
   width       Int?
@@ -77,6 +97,8 @@ model LibraryItem {
   playlistItems PlaylistItem[]
 
   @@index([type, source])
+  @@index([category])
+  @@index([libraryId])
   @@index([mtime])
 }
 

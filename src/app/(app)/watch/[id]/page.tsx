@@ -1,23 +1,24 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Heart, ThumbsUp, Clock, ListPlus, ArrowLeft, Loader2, Music2 } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, Clock, Heart, ListPlus, Loader2, Music2, Pause, Play, ThumbsUp } from "lucide-react";
 import { apiGet, apiSend } from "@/lib/client-api";
 import { cn, formatBytes, formatDuration } from "@/lib/utils";
 import { useToast } from "@/components/providers/toast-provider";
+import { usePlayer } from "@/components/player/player-provider";
+import { VideoPlayer } from "@/components/player/video-player";
 import { AddToPlaylistModal } from "@/components/media/add-to-playlist";
 import type { LibraryItem } from "@/lib/types";
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const qc = useQueryClient();
   const toast = useToast();
+  const player = usePlayer();
   const [playlistOpen, setPlaylistOpen] = useState(false);
-  const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
-  const lastSaved = useRef(0);
-  const seeked = useRef(false);
 
   const { data: item, isLoading } = useQuery({
     queryKey: ["library", id],
@@ -29,24 +30,13 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
     if (item) setState(item.state);
   }, [item]);
 
-  function saveProgress(position: number, finished = false) {
-    apiSend("PATCH", `/api/library/${id}/state`, { position, finished }).catch(() => {});
-  }
-
-  function onTimeUpdate(e: React.SyntheticEvent<HTMLMediaElement>) {
-    const t = e.currentTarget.currentTime;
-    if (t - lastSaved.current > 5) {
-      lastSaved.current = t;
-      saveProgress(t);
+  // Audio items play through the persistent bottom player.
+  useEffect(() => {
+    if (item && item.type === "audio" && player.current?.id !== item.id) {
+      player.playQueue([item], 0);
     }
-  }
-
-  function onLoadedMetadata(e: React.SyntheticEvent<HTMLMediaElement>) {
-    if (!seeked.current && item?.state.position && item.state.position > 3) {
-      e.currentTarget.currentTime = item.state.position;
-    }
-    seeked.current = true;
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id]);
 
   async function toggle(field: "favorite" | "watchLater" | "liked") {
     if (!state) return;
@@ -65,67 +55,65 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
   if (isLoading || !item || !state) {
     return (
       <div className="flex items-center justify-center py-32">
-        <Loader2 className="h-6 w-6 animate-spin text-accent-blue" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
 
-  const isAudio = item.type === "video" ? false : true;
+  const isAudio = item.type === "audio";
+  const audioActive = player.current?.id === item.id;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      <Link
-        href="/videos"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200"
+    <div className="mx-auto max-w-5xl space-y-5">
+      <button
+        onClick={() => router.back()}
+        className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to library
-      </Link>
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
 
-      <div className="rounded-2xl overflow-hidden bg-black border border-slate-700/30">
-        {isAudio ? (
-          <div className="flex flex-col items-center justify-center py-14 bg-gradient-to-br from-navy-800 to-navy-900">
-            <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-accent-blue/30 to-accent-purple/20 flex items-center justify-center mb-6">
-              <Music2 className="h-12 w-12 text-accent-blue" />
-            </div>
-            <audio
-              ref={mediaRef as React.RefObject<HTMLAudioElement>}
-              src={`/api/stream/${id}`}
-              controls
-              autoPlay
-              className="w-[min(90%,32rem)]"
-              onTimeUpdate={onTimeUpdate}
-              onLoadedMetadata={onLoadedMetadata}
-              onEnded={() => saveProgress(item.duration || 0, true)}
-            />
+      {isAudio ? (
+        <div className="glass-card flex flex-col items-center justify-center gap-6 py-14">
+          <div className="flex h-40 w-40 items-center justify-center rounded-3xl bg-gradient-to-br from-primary/30 to-secondary/20 shadow-xl">
+            <Music2 className="h-16 w-16 text-primary" />
           </div>
-        ) : (
-          <video
-            ref={mediaRef as React.RefObject<HTMLVideoElement>}
-            src={`/api/stream/${id}`}
-            poster={`/api/thumbnail/${id}`}
-            controls
-            autoPlay
-            className="w-full aspect-video bg-black"
-            onTimeUpdate={onTimeUpdate}
-            onLoadedMetadata={onLoadedMetadata}
-            onEnded={() => saveProgress(item.duration || 0, true)}
-          />
-        )}
-      </div>
+          <div className="text-center">
+            <h1 className="text-xl font-semibold text-foreground">{item.title}</h1>
+            <p className="mt-1 text-sm text-muted">
+              {item.ext?.toUpperCase()}
+              {item.duration ? ` · ${formatDuration(item.duration)}` : ""}
+            </p>
+          </div>
+          <button
+            onClick={() => (audioActive ? player.toggle() : player.playQueue([item], 0))}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-primary to-secondary text-white shadow-lg shadow-primary/30 transition-transform hover:scale-105"
+            aria-label={audioActive && player.playing ? "Pause" : "Play"}
+          >
+            {audioActive && player.playing ? (
+              <Pause className="h-6 w-6 fill-white" />
+            ) : (
+              <Play className="ml-0.5 h-6 w-6 fill-white" />
+            )}
+          </button>
+          <p className="text-xs text-muted-2">Playing in the bar below — it keeps going as you browse.</p>
+        </div>
+      ) : (
+        <VideoPlayer item={item} startAt={state.position > 3 ? state.position : 0} />
+      )}
 
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-slate-100 break-words">{item.title}</h1>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-slate-500">
-            <span className="capitalize">{item.source === "download" ? "Downloaded" : "Library"}</span>
+          <h1 className="break-words text-xl font-semibold text-foreground">{item.title}</h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-2">
+            <span className="capitalize">{item.category}</span>
             {item.duration ? <span>· {formatDuration(item.duration)}</span> : null}
-            {item.width && item.height ? <span>· {item.height}p</span> : null}
+            {item.height ? <span>· {item.height}p</span> : null}
             <span>· {formatBytes(item.size)}</span>
             {item.ext ? <span>· {item.ext.toUpperCase()}</span> : null}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <ActionButton active={state.favorite} onClick={() => toggle("favorite")} label="Favorite">
             <Heart className={cn("h-4 w-4", state.favorite && "fill-current")} />
           </ActionButton>
@@ -141,9 +129,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
         </div>
       </div>
 
-      {playlistOpen && (
-        <AddToPlaylistModal itemId={id} onClose={() => setPlaylistOpen(false)} />
-      )}
+      {playlistOpen && <AddToPlaylistModal itemId={id} onClose={() => setPlaylistOpen(false)} />}
     </div>
   );
 }
@@ -163,11 +149,13 @@ function ActionButton({
     <button
       onClick={onClick}
       title={label}
+      aria-label={label}
+      aria-pressed={active}
       className={cn(
-        "flex items-center justify-center h-10 w-10 rounded-xl border transition-colors",
+        "flex h-10 w-10 items-center justify-center rounded-xl border transition-colors",
         active
-          ? "bg-accent-blue/20 border-accent-blue/40 text-accent-blue"
-          : "bg-navy-800/60 border-slate-700/40 text-slate-400 hover:text-slate-200 hover:border-slate-600",
+          ? "border-primary/40 bg-primary/15 text-primary"
+          : "border-stroke bg-surface-2/60 text-muted hover:border-stroke-strong hover:text-foreground"
       )}
     >
       {children}

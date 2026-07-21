@@ -1,18 +1,18 @@
 import {
   BarChart3,
-  Clapperboard,
   Clock,
   DownloadCloud,
+  Film,
   Heart,
   HardDrive,
   LayoutDashboard,
   ListVideo,
   Music,
-  Radio,
   Settings,
   Sparkles,
   Tv,
   Users,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,12 +34,12 @@ export const navSections: NavSection[] = [
   {
     label: "Main",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { href: "/movies", label: "Movies", icon: Clapperboard },
+      { href: "/", label: "Home", icon: LayoutDashboard, exact: true },
+      { href: "/movies", label: "Movies", icon: Film },
       { href: "/tv-shows", label: "TV Shows", icon: Tv },
+      { href: "/videos", label: "Videos", icon: Video },
       { href: "/music", label: "Music", icon: Music },
       { href: "/downloads", label: "Downloads", icon: DownloadCloud },
-      { href: "/live-streams", label: "Live Streams", icon: Radio },
     ],
   },
   {

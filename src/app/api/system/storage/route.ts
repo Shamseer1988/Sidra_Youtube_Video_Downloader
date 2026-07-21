@@ -3,7 +3,7 @@ import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { ok, withAuth } from "@/lib/api";
 import { config, allAllowedDirs } from "@/lib/config";
-import { allExtraDirs } from "@/lib/runtime-settings";
+import { registeredLibraryDirs } from "@/lib/libraries";
 
 interface VolumeInfo {
   path: string;
@@ -20,7 +20,7 @@ interface VolumeInfo {
  */
 export const GET = withAuth(async () => {
   const dataDir = path.dirname((process.env.DATABASE_URL || "file:./prisma/dev.db").replace(/^file:/, ""));
-  const candidates = [...new Set([...allAllowedDirs(), ...allExtraDirs(), dataDir])];
+  const candidates = [...new Set([...allAllowedDirs(), ...registeredLibraryDirs(), dataDir])];
 
   const volumes: VolumeInfo[] = [];
   const seen = new Set<string>();

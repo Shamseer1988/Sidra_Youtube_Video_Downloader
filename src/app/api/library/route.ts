@@ -7,14 +7,18 @@ export const GET = withAuth(async (req, user) => {
   const url = new URL(req.url);
   const type = url.searchParams.get("type") || undefined; // video | audio
   const source = url.searchParams.get("source") || undefined; // download | nas
+  const category = url.searchParams.get("category") || undefined;
+  const libraryId = url.searchParams.get("libraryId") || undefined;
   const q = url.searchParams.get("q")?.trim();
   const filter = url.searchParams.get("filter"); // favorites | watchLater | continue
   const sort = url.searchParams.get("sort") || "recent";
-  const limit = Math.min(Number(url.searchParams.get("limit") || 200), 500);
+  const limit = Math.min(Number(url.searchParams.get("limit") || 200), 2000);
 
   const where: Prisma.LibraryItemWhereInput = {};
   if (type) where.type = type;
   if (source) where.source = source;
+  if (category) where.category = category;
+  if (libraryId) where.libraryId = libraryId;
   if (q) where.title = { contains: q };
 
   if (filter === "favorites") where.states = { some: { userId: user.id, favorite: true } };

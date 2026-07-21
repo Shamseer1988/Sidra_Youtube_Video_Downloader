@@ -1,21 +1,13 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Clock,
-  FolderSearch,
-  Link2,
-  ListMusic,
-  Sparkles,
-  Star,
-  TrendingUp,
-  Upload,
-} from "lucide-react";
+import { DownloadCloud, FolderSearch, Library, Play, Settings as SettingsIcon, Sparkles } from "lucide-react";
 import { useUIStore } from "@/lib/ui-store";
 import { navSections } from "@/lib/navigation";
-import { movies, tvShows, recentSearches, trendingSearches } from "@/lib/mock-data";
-import { PosterArt } from "@/components/media/poster-art";
+import { categoryIcon } from "@/lib/categories";
+import { useLibraries, useLibraryItems } from "@/hooks/use-library";
+import { MediaThumb } from "@/components/media/media-thumb";
 import {
   CommandDialog,
   CommandEmpty,
@@ -27,17 +19,30 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 
+const categoryHref: Record<string, string> = {
+  movies: "/movies",
+  tv: "/tv-shows",
+  videos: "/videos",
+  music: "/music",
+};
+
 const quickActions = [
-  { label: "Download from URL", icon: Link2, href: "/downloads", shortcut: "D" },
-  { label: "Import Playlist", icon: ListMusic, href: "/playlists", shortcut: "P" },
-  { label: "Upload Media", icon: Upload, href: "/movies", shortcut: "U" },
-  { label: "Scan NAS", icon: FolderSearch, href: "/nas", shortcut: "S" },
+  { label: "New Download", icon: DownloadCloud, href: "/downloads", shortcut: "D" },
+  { label: "Add Library", icon: FolderSearch, href: "/settings", shortcut: "L" },
+  { label: "Settings", icon: SettingsIcon, href: "/settings", shortcut: "," },
 ];
 
-/** Global ⌘K / Ctrl+K command palette. */
+/** Global ⌘K / Ctrl+K command palette with real library search. */
 export function CommandMenu() {
   const router = useRouter();
   const { commandOpen, setCommandOpen } = useUIStore();
+  const [query, setQuery] = useState("");
+
+  const { data: libraries = [] } = useLibraries();
+  const { data: results = [] } = useLibraryItems(
+    { q: query.trim(), limit: 16 },
+    { enabled: commandOpen && query.trim().length > 1 }
+  );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -50,7 +55,9 @@ export function CommandMenu() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [setCommandOpen]);
 
-  const media = useMemo(() => [...movies.slice(0, 6), ...tvShows.slice(0, 4)], []);
+  useEffect(() => {
+    if (!commandOpen) setQuery("");
+  }, [commandOpen]);
 
   function run(action: () => void) {
     setCommandOpen(false);
@@ -59,9 +66,37 @@ export function CommandMenu() {
 
   return (
     <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
-      <CommandInput placeholder="Search movies, pages, actions…" autoFocus />
+      <CommandInput
+        placeholder="Search your library, pages, actions…"
+        value={query}
+        onValueChange={setQuery}
+        autoFocus
+      />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
+
+        {results.length > 0 && (
+          <CommandGroup heading="Library">
+            {results.map((item) => (
+              <CommandItem
+                key={item.id}
+                value={`media-${item.id}-${item.title}`}
+                onSelect={() => run(() => router.push(`/watch/${item.id}`))}
+              >
+                <span className="h-9 w-9 shrink-0 overflow-hidden rounded-md">
+                  <MediaThumb id={item.id} title={item.title} type={item.type} hasThumbnail={!!item.thumbnail} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-foreground">{item.title}</span>
+                  <span className="block text-[11px] capitalize text-muted-2">
+                    {item.category} · {item.type}
+                  </span>
+                </span>
+                <Play className="ml-auto h-3.5 w-3.5 text-muted-2" />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         <CommandGroup heading="Quick Actions">
           {quickActions.map((action) => (
@@ -79,74 +114,38 @@ export function CommandMenu() {
           ))}
         </CommandGroup>
 
-        <CommandSeparator />
-
-        <CommandGroup heading="Library">
-          {media.map((item) => (
-            <CommandItem
-              key={item.id}
-              value={`media ${item.title} ${item.genre}`}
-              onSelect={() =>
-                run(() => router.push(item.kind === "movie" ? "/movies" : "/tv-shows"))
-              }
-            >
-              <span className="h-10 w-7 shrink-0 overflow-hidden rounded-md">
-                <PosterArt title={item.title} colors={item.art} kind={item.kind} showTitle={false} />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-foreground">{item.title}</span>
-                <span className="block text-[11px] text-muted-2">
-                  {item.kind === "movie" ? "Movie" : "TV Show"} · {item.year} · {item.genre}
-                </span>
-              </span>
-              <span className="ml-auto flex items-center gap-1 text-[11px] text-warning">
-                <Star className="h-3 w-3 fill-warning" /> {item.rating.toFixed(1)}
-              </span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
+        {libraries.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Libraries">
+              {libraries.map((lib) => {
+                const Icon = categoryIcon[lib.category] ?? Library;
+                return (
+                  <CommandItem
+                    key={lib.id}
+                    value={`lib ${lib.name} ${lib.category}`}
+                    onSelect={() => run(() => router.push(categoryHref[lib.category] ?? "/videos"))}
+                  >
+                    <Icon className="h-4 w-4 text-muted-2" />
+                    {lib.name}
+                    <span className="ml-auto text-[11px] text-muted-2">{lib.itemCount}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </>
+        )}
 
         <CommandSeparator />
-
         <CommandGroup heading="Navigate">
-          {navSections
-            .flatMap((s) => s.items)
-            .map((item) => (
-              <CommandItem
-                key={item.href}
-                value={`go ${item.label}`}
-                onSelect={() => run(() => router.push(item.href))}
-              >
-                <item.icon className="h-4 w-4 text-muted-2" />
-                {item.label}
-              </CommandItem>
-            ))}
-        </CommandGroup>
-
-        <CommandSeparator />
-
-        <CommandGroup heading="Recent Searches">
-          {recentSearches.map((term) => (
+          {navSections.flatMap((s) => s.items).map((item) => (
             <CommandItem
-              key={term}
-              value={`recent ${term}`}
-              onSelect={() => run(() => router.push(`/movies?q=${encodeURIComponent(term)}`))}
+              key={item.href}
+              value={`go ${item.label}`}
+              onSelect={() => run(() => router.push(item.href))}
             >
-              <Clock className="h-4 w-4 text-muted-2" />
-              {term}
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        <CommandGroup heading="Trending">
-          {trendingSearches.map((term) => (
-            <CommandItem
-              key={term}
-              value={`trending ${term}`}
-              onSelect={() => run(() => router.push(`/movies?q=${encodeURIComponent(term)}`))}
-            >
-              <TrendingUp className="h-4 w-4 text-success" />
-              {term}
+              <item.icon className="h-4 w-4 text-muted-2" />
+              {item.label}
             </CommandItem>
           ))}
         </CommandGroup>

@@ -1,16 +1,13 @@
-import { Suspense } from "react";
-import { LibraryBrowser } from "@/components/media/library-browser";
+"use client";
+
+import { PageHeader } from "@/components/layout/page-header";
+import { CategoryExplorer } from "@/components/media/category-explorer";
 
 export default function MusicPage() {
   return (
-    <Suspense>
-      <LibraryBrowser
-        title="Music"
-        base={{ type: "audio" }}
-        showSourceFilter
-        showScan
-        emptyText="No audio found. Download some audio or point MEDIA_AUDIO_PATH at your NAS music folder and run a scan."
-      />
-    </Suspense>
+    <div className="mx-auto max-w-[1600px] space-y-5">
+      <PageHeader title="Music" subtitle="Your music libraries and playlists" />
+      <CategoryExplorer category="music" />
+    </div>
   );
 }

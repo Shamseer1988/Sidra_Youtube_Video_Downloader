@@ -5,14 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { AlertCircle, Loader2, Lock, LogIn, Play, User } from "lucide-react";
 import { apiSend } from "@/lib/client-api";
-import { movies, tvShows } from "@/lib/mock-data";
+import { posterWall } from "@/lib/mock-data";
 import { PosterArt } from "@/components/media/poster-art";
 
 /* ------------------------------------------------------------------ */
 /*  Cinematic poster-wall backdrop (Netflix / Prime style)             */
 /* ------------------------------------------------------------------ */
 
-const wall = [...movies, ...tvShows, ...movies.slice(0, 4)];
+const wall = [...posterWall, ...posterWall.slice(0, 4)];
 
 function PosterWall() {
   return (

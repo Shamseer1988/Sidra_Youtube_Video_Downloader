@@ -7,6 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandMenu } from "@/components/layout/command-menu";
+import { PlayerProvider } from "@/components/player/player-provider";
+import { NowPlayingBar } from "@/components/player/now-playing-bar";
 import type { CurrentUser } from "@/lib/types";
 
 export default async function AppLayout({
@@ -30,14 +32,17 @@ export default async function AppLayout({
       <UserProvider user={currentUser}>
         <ToastProvider>
           <TooltipProvider delayDuration={200}>
-            <div className="flex min-h-screen bg-background">
-              <Sidebar isAdmin={currentUser.role === "admin"} />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <Topbar user={currentUser} />
-                <main className="flex-1 overflow-auto p-3 sm:p-5">{children}</main>
+            <PlayerProvider>
+              <div className="flex min-h-screen bg-background">
+                <Sidebar isAdmin={currentUser.role === "admin"} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <Topbar user={currentUser} />
+                  <main className="flex-1 overflow-auto p-3 pb-28 sm:p-5 sm:pb-28">{children}</main>
+                </div>
               </div>
-            </div>
-            <CommandMenu />
+              <CommandMenu />
+              <NowPlayingBar />
+            </PlayerProvider>
           </TooltipProvider>
         </ToastProvider>
       </UserProvider>

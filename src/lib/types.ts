@@ -21,6 +21,9 @@ export interface LibraryItem {
   title: string;
   type: "video" | "audio";
   source: "download" | "nas";
+  category: string;
+  folder: string;
+  libraryId: string | null;
   size: number;
   duration: number | null;
   width: number | null;
@@ -48,6 +51,15 @@ export interface DownloadJob {
   libraryId: string | null;
   error: string | null;
   createdAt: string;
+}
+
+export interface LibraryDTO {
+  id: string;
+  name: string;
+  path: string;
+  category: "movies" | "tv" | "videos" | "music";
+  kind: "video" | "audio";
+  itemCount: number;
 }
 
 export interface PlaylistSummary {

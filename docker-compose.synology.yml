@@ -26,6 +26,10 @@ services:
       # Set to "true" ONLY when serving over HTTPS (e.g. DSM reverse proxy).
       # Over plain http://nas-ip:8080 it must stay "false" or login breaks.
       COOKIE_SECURE: "false"
+      # Default hardware acceleration for transcoding: off | auto | nvenc | vaapi | qsv.
+      # Can also be changed live in Settings → Playback. Leave "off" unless
+      # you pass a GPU device through (see the commented "devices" block below).
+      FFMPEG_HWACCEL: "off"
       # Run as your NAS user so downloaded files get sane ownership.
       # Find yours via `id your-user` over SSH.
       # PUID / PGID are applied by the "user" key below.
@@ -36,7 +40,15 @@ services:
       # New downloads land here (point at any share you like).
       - /volume1/video/Downloads:/downloads/videos
       - /volume1/music/Downloads:/downloads/audio
-      # Existing libraries to browse & stream.
+      # NAS media shares mounted as browse roots. Inside the app you then
+      # assign subfolders as libraries (Settings → Media Libraries) and tag
+      # each as Movies / TV Shows / Videos / Music. Nothing is indexed until
+      # you assign it — mounting alone shows no files.
       - /volume1/video:/media/videos:ro
       - /volume1/music:/media/music:ro
+    # ── Optional: GPU transcoding ──────────────────────────────────────
+    # Intel/AMD (VAAPI or QSV): expose the render device, then set
+    # FFMPEG_HWACCEL to "vaapi" or "qsv" (above) or in Settings → Playback.
+    # devices:
+    #   - /dev/dri:/dev/dri
     restart: unless-stopped

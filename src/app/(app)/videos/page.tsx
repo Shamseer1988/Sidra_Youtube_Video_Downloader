@@ -1,16 +1,13 @@
-import { Suspense } from "react";
-import { LibraryBrowser } from "@/components/media/library-browser";
+"use client";
+
+import { PageHeader } from "@/components/layout/page-header";
+import { CategoryExplorer } from "@/components/media/category-explorer";
 
 export default function VideosPage() {
   return (
-    <Suspense>
-      <LibraryBrowser
-        title="Videos"
-        base={{ type: "video" }}
-        showSourceFilter
-        showScan
-        emptyText="No videos found. Add a download or point MEDIA_VIDEO_PATH at your NAS folder and run a scan."
-      />
-    </Suspense>
+    <div className="mx-auto max-w-[1600px] space-y-5">
+      <PageHeader title="Videos" subtitle="Home videos, events and clips by folder" />
+      <CategoryExplorer category="videos" />
+    </div>
   );
 }
