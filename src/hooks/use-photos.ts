@@ -16,6 +16,7 @@ export interface PhotoQuery {
   q?: string;
   year?: number;
   month?: number;
+  day?: number;
   ext?: string;
 }
 
@@ -27,6 +28,7 @@ export function usePhotos(params: PhotoQuery = {}) {
   if (params.q?.trim()) base.set("q", params.q.trim());
   if (params.year) base.set("year", String(params.year));
   if (params.month) base.set("month", String(params.month));
+  if (params.day) base.set("day", String(params.day));
   if (params.ext) base.set("ext", params.ext);
 
   return useInfiniteQuery({
@@ -45,6 +47,34 @@ export function usePhotoLibraries() {
   return useQuery({
     queryKey: ["photo-libraries"],
     queryFn: () => apiGet<PhotoLibrarySummary[]>("/api/photo-libraries"),
+  });
+}
+
+export interface CalendarFacets {
+  years: number[];
+  year: number;
+  days: { month: number; day: number; count: number }[];
+}
+
+export function usePhotoCalendar(year: number | null) {
+  return useQuery({
+    queryKey: ["photo-calendar", year ?? "latest"],
+    queryFn: () => apiGet<CalendarFacets>(`/api/photos/calendar${year ? `?year=${year}` : ""}`),
+  });
+}
+
+export interface MapPhoto {
+  id: string;
+  lat: number;
+  lng: number;
+  filename: string;
+}
+
+export function usePhotoMap(enabled: boolean) {
+  return useQuery({
+    queryKey: ["photo-map"],
+    queryFn: () => apiGet<MapPhoto[]>("/api/photos/map"),
+    enabled,
   });
 }
 

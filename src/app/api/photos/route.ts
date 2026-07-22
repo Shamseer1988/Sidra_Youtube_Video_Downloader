@@ -19,6 +19,7 @@ export const GET = withAuth(async (req) => {
     scope: p.get("scope") || undefined,
     year: p.get("year") ? Number(p.get("year")) : undefined,
     month: p.get("month") ? Number(p.get("month")) : undefined,
+    day: p.get("day") ? Number(p.get("day")) : undefined,
     camera: p.get("camera") || undefined,
     ext: p.get("ext") || undefined,
   });

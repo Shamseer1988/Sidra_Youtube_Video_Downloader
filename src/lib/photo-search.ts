@@ -93,6 +93,7 @@ export interface PhotoSearchParams {
   scope?: string; // "archive" | "all"
   year?: number;
   month?: number;
+  day?: number;
   camera?: string;
   ext?: string;
 }
@@ -112,6 +113,7 @@ export function buildPhotoWhere(params: PhotoSearchParams): Prisma.PhotoWhereInp
   if (params.favorite) and.push({ favorite: true });
   if (params.year) and.push({ takenYear: params.year });
   if (params.month) and.push({ takenMonth: params.month });
+  if (params.day) and.push({ takenDay: params.day });
   if (params.camera) and.push({ camera: { contains: params.camera } });
   if (params.ext) and.push({ ext: params.ext.toLowerCase() });
 
