@@ -133,10 +133,12 @@ export async function removePhotoLibrary(id: string): Promise<{ ok: boolean; mes
   try {
     // Delete explicitly (fast, single statements) rather than relying on
     // cascade emulation across thousands of photos — that was timing out.
+    // deleteMany is used throughout so a partially-completed earlier attempt
+    // (library already gone) resolves as success instead of throwing P2025.
     await prisma.$transaction([
       prisma.albumPhoto.deleteMany({ where: { photo: { libraryId: id } } }),
       prisma.photo.deleteMany({ where: { libraryId: id } }),
-      prisma.photoLibrary.delete({ where: { id } }),
+      prisma.photoLibrary.deleteMany({ where: { id } }),
     ]);
     await loadPhotoLibraries();
     return { ok: true };
@@ -264,6 +266,32 @@ async function readExif(file: string): Promise<PhotoMeta> {
   } catch {
     return {};
   }
+}
+
+// ── Filename date parsing ───────────────────────────────────────────
+
+/**
+ * Extract a capture date from common filename patterns when EXIF is missing:
+ *   20150717_210944.jpg · IMG_20150717_210944 · 2015-07-17 21.09.44 ·
+ *   IMG-20150717-WA0001 · Screenshot_20200101-120000 · PXL_20210101_120000123.
+ * Validates the calendar date and rejects impossible or future dates.
+ */
+export function parseFilenameDate(filename: string): Date | null {
+  const m = filename.match(
+    /((?:19|20)\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?:[-_ tT.]?([01]\d|2[0-3])[-_.:]?([0-5]\d)(?:[-_.:]?([0-5]\d))?)?/,
+  );
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = m[4] ? Number(m[4]) : 12;
+  const min = m[5] ? Number(m[5]) : 0;
+  const sec = m[6] ? Number(m[6]) : 0;
+  const d = new Date(year, month - 1, day, hour, min, sec);
+  // Reject rolled-over (e.g. Feb 30), pre-1970, or future dates.
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+  if (d.getTime() > Date.now() + 86_400_000 || year < 1970) return null;
+  return d;
 }
 
 // ── Thumbnails ──────────────────────────────────────────────────────
@@ -408,6 +436,27 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
         .catch(() => {});
     }
 
+    // Re-date photos that fell back to file mtime, using a date embedded in
+    // the filename (e.g. 20150717_210944.jpg). A photo whose takenAt sits at
+    // its mtime is the fallback; once re-dated it no longer matches, so this
+    // is idempotent and self-limiting across scans.
+    const maybeUndated = await prisma.photo.findMany({
+      select: { id: true, filename: true, takenAt: true, mtime: true },
+      take: 8000,
+    });
+    for (const p of maybeUndated) {
+      if (!p.takenAt) continue;
+      if (Math.abs(p.takenAt.getTime() - p.mtime.getTime()) > 2000) continue; // has a real date already
+      const fd = parseFilenameDate(p.filename);
+      if (!fd || Math.abs(fd.getTime() - p.takenAt.getTime()) < 2000) continue;
+      await prisma.photo
+        .update({
+          where: { id: p.id },
+          data: { takenAt: fd, takenYear: fd.getFullYear(), takenMonth: fd.getMonth() + 1, takenDay: fd.getDate() },
+        })
+        .catch(() => {});
+    }
+
     const libraries = await prisma.photoLibrary.findMany();
     const seen = new Set<string>();
     const healthyRoots: string[] = [];
@@ -444,7 +493,7 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
         }
 
         const meta = await readExif(file);
-        const taken = meta.takenAt ?? mtime;
+        const taken = meta.takenAt ?? parseFilenameDate(path.basename(file)) ?? mtime;
         const created = await prisma.photo.create({
           data: {
             path: file,
