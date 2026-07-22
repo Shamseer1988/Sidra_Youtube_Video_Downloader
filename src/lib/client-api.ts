@@ -22,9 +22,12 @@ async function unwrap<T>(res: Response): Promise<T> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  // no-store so refetches never get a stale browser-cached API response;
-  // react-query owns caching at the app layer.
-  const res = await fetch(path, { credentials: "include", cache: "no-store" });
+  // no-store + a per-request cache-buster so NO layer (browser HTTP cache or a
+  // reverse proxy) can ever serve a stale API response — e.g. a library list
+  // that still shows a just-deleted item. react-query owns caching at the app
+  // layer, keyed independently of this URL.
+  const bust = `${path.includes("?") ? "&" : "?"}_=${Date.now()}`;
+  const res = await fetch(path + bust, { credentials: "include", cache: "no-store" });
   return unwrap<T>(res);
 }
 
