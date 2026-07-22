@@ -44,10 +44,14 @@ export function PhotoLibraryManager({ isAdmin }: { isAdmin: boolean }) {
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => apiSend("DELETE", `/api/photo-libraries/${id}`),
-    onSuccess: () => toast("Photo folder removed", "success"),
+    onSuccess: (_data, id) => {
+      toast("Photo folder removed", "success");
+      // Drop the row immediately so the UI updates without waiting on refetch.
+      qc.setQueryData<PhotoLibrarySummary[]>(["photo-libraries"], (prev) =>
+        prev ? prev.filter((l) => l.id !== id) : prev,
+      );
+    },
     onError: (err: Error) => toast(err.message || "Could not remove", "error"),
-    // Always refresh — clears a stale row whether the delete succeeded or the
-    // record was already gone.
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["photo-libraries"] });
       qc.invalidateQueries({ queryKey: ["photos"] });

@@ -22,7 +22,9 @@ async function unwrap<T>(res: Response): Promise<T> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path, { credentials: "include" });
+  // no-store so refetches never get a stale browser-cached API response;
+  // react-query owns caching at the app layer.
+  const res = await fetch(path, { credentials: "include", cache: "no-store" });
   return unwrap<T>(res);
 }
 
