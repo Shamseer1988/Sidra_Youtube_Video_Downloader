@@ -129,21 +129,24 @@ export async function addPhotoLibrary(input: { name: string; folderPath: string 
   }
 }
 
-export async function removePhotoLibrary(id: string): Promise<{ ok: boolean; message?: string }> {
+export async function removePhotoLibrary(id: string): Promise<{ ok: boolean; message?: string; deleted?: number }> {
   try {
-    // Delete explicitly (fast, single statements) rather than relying on
-    // cascade emulation across thousands of photos — that was timing out.
-    // deleteMany is used throughout so a partially-completed earlier attempt
-    // (library already gone) resolves as success instead of throwing P2025.
-    await prisma.$transaction([
-      prisma.albumPhoto.deleteMany({ where: { photo: { libraryId: id } } }),
-      prisma.photo.deleteMany({ where: { libraryId: id } }),
-      prisma.photoLibrary.deleteMany({ where: { id } }),
-    ]);
+    // Delete the library's photos (and their album links) in small batches by
+    // primary key — avoids relation-filter deleteMany quirks and SQLite's
+    // bound-variable limit, and never leans on cascade emulation (which timed
+    // out on large libraries).
+    for (;;) {
+      const batch = await prisma.photo.findMany({ where: { libraryId: id }, select: { id: true }, take: 400 });
+      if (batch.length === 0) break;
+      const ids = batch.map((p) => p.id);
+      await prisma.albumPhoto.deleteMany({ where: { photoId: { in: ids } } });
+      await prisma.photo.deleteMany({ where: { id: { in: ids } } });
+    }
+    const res = await prisma.photoLibrary.deleteMany({ where: { id } });
     await loadPhotoLibraries();
-    return { ok: true };
+    return { ok: true, deleted: res.count };
   } catch (e) {
-    return { ok: false, message: (e as Error)?.message?.slice(0, 200) || "Could not remove library" };
+    return { ok: false, message: (e as Error)?.message?.slice(0, 300) || "Could not remove library" };
   }
 }
 

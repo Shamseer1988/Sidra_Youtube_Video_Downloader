@@ -12,7 +12,11 @@ export function jsonSafe<T>(data: T): T {
 }
 
 export function ok<T>(data: T, init?: ResponseInit) {
-  return NextResponse.json({ success: true, data: jsonSafe(data) }, init);
+  const res = NextResponse.json({ success: true, data: jsonSafe(data) }, init);
+  // API data is dynamic and per-user — never let the browser serve a stale
+  // cached copy (e.g. a list that still shows a just-deleted item).
+  res.headers.set("Cache-Control", "no-store");
+  return res;
 }
 
 export function fail(message: string, status = 400) {
