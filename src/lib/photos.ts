@@ -133,10 +133,12 @@ export async function removePhotoLibrary(id: string): Promise<{ ok: boolean; mes
   try {
     // Delete explicitly (fast, single statements) rather than relying on
     // cascade emulation across thousands of photos — that was timing out.
+    // deleteMany is used throughout so a partially-completed earlier attempt
+    // (library already gone) resolves as success instead of throwing P2025.
     await prisma.$transaction([
       prisma.albumPhoto.deleteMany({ where: { photo: { libraryId: id } } }),
       prisma.photo.deleteMany({ where: { libraryId: id } }),
-      prisma.photoLibrary.delete({ where: { id } }),
+      prisma.photoLibrary.deleteMany({ where: { id } }),
     ]);
     await loadPhotoLibraries();
     return { ok: true };
