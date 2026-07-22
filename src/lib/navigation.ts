@@ -5,6 +5,8 @@ import {
   Film,
   Heart,
   HardDrive,
+  History,
+  Images,
   LayoutDashboard,
   ListVideo,
   Music,
@@ -39,12 +41,14 @@ export const navSections: NavSection[] = [
       { href: "/tv-shows", label: "TV Shows", icon: Tv },
       { href: "/videos", label: "Videos", icon: Video },
       { href: "/music", label: "Music", icon: Music },
+      { href: "/photos", label: "Photos", icon: Images },
       { href: "/downloads", label: "Downloads", icon: DownloadCloud },
     ],
   },
   {
     label: "Library",
     items: [
+      { href: "/continue-watching", label: "Continue Watching", icon: History },
       { href: "/favorites", label: "Favorites", icon: Heart },
       { href: "/watch-later", label: "Watch Later", icon: Clock },
       { href: "/playlists", label: "Playlists", icon: ListVideo },

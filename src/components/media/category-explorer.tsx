@@ -89,9 +89,14 @@ function FolderTile({
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary transition-transform group-hover:scale-110">
         {icon ?? <Folder className="h-7 w-7" />}
       </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-foreground">{label}</span>
-        <span className="block text-[11px] text-muted-2">
+      <span className="w-full min-w-0">
+        <span
+          title={label}
+          className="block break-words text-sm font-semibold leading-snug text-foreground line-clamp-2"
+        >
+          {label}
+        </span>
+        <span className="mt-0.5 block text-[11px] text-muted-2">
           {count} item{count === 1 ? "" : "s"}
         </span>
       </span>
@@ -121,7 +126,12 @@ function FileTile({
           )}
         >
           <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
-            <MediaThumb id={item.id} title={item.title} type={item.type} hasThumbnail={!!item.thumbnail} />
+            <MediaThumb
+              id={item.id}
+              title={item.title}
+              type={item.type}
+              previewAt={item.type === "video" && item.duration ? item.duration / 2 : undefined}
+            />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
 
@@ -174,6 +184,205 @@ function FileTile({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Views (grouping / sorting of a library's items)                    */
+/* ------------------------------------------------------------------ */
+
+type ViewMode =
+  | "folder"
+  | "all"
+  | "recent-added"
+  | "recent-played"
+  | "continue"
+  | "genres"
+  | "collections"
+  | "years"
+  | "resolution"
+  | "duration"
+  | "filetype";
+
+const VIEW_OPTIONS: { v: ViewMode; label: string }[] = [
+  { v: "folder", label: "Folders" },
+  { v: "all", label: "All Media" },
+  { v: "recent-added", label: "Recently Added" },
+  { v: "recent-played", label: "Recently Played" },
+  { v: "continue", label: "Continue" },
+  { v: "genres", label: "Genres" },
+  { v: "collections", label: "Collections" },
+  { v: "years", label: "Years" },
+  { v: "resolution", label: "Resolution" },
+  { v: "duration", label: "Duration" },
+  { v: "filetype", label: "File Type" },
+];
+
+function viewsForCategory(category: string): { v: ViewMode; label: string }[] {
+  // Resolution grouping is meaningless for audio-only libraries.
+  return category === "music" ? VIEW_OPTIONS.filter((o) => o.v !== "resolution") : VIEW_OPTIONS;
+}
+
+const byTitle = (items: LibraryItem[]) =>
+  [...items].sort((a, b) => a.title.localeCompare(b.title));
+
+interface Group {
+  label: string;
+  items: LibraryItem[];
+}
+
+function groupBy(items: LibraryItem[], keyOf: (i: LibraryItem) => string, order?: string[]): Group[] {
+  const map = new Map<string, LibraryItem[]>();
+  for (const it of items) {
+    const key = keyOf(it);
+    const bucket = map.get(key);
+    if (bucket) bucket.push(it);
+    else map.set(key, [it]);
+  }
+  const entries = [...map.entries()];
+  if (order) entries.sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
+  else entries.sort((a, b) => a[0].localeCompare(b[0]));
+  return entries.map(([label, its]) => ({ label, items: byTitle(its) }));
+}
+
+const RES_ORDER = ["4K", "1080p", "720p", "SD", "Unknown"];
+function resBucket(h: number | null): string {
+  if (!h) return "Unknown";
+  if (h >= 2160) return "4K";
+  if (h >= 1080) return "1080p";
+  if (h >= 720) return "720p";
+  return "SD";
+}
+
+const DUR_ORDER = ["Under 5 min", "5–20 min", "20–60 min", "Over 1 hour", "Unknown"];
+function durBucket(d: number | null): string {
+  if (!d) return "Unknown";
+  if (d < 300) return "Under 5 min";
+  if (d < 1200) return "5–20 min";
+  if (d < 3600) return "20–60 min";
+  return "Over 1 hour";
+}
+
+function fileYear(item: LibraryItem): string {
+  const y = new Date(item.mtime).getFullYear();
+  return Number.isFinite(y) && y > 1900 ? String(y) : "Unknown";
+}
+
+function pushMap(map: Map<string, LibraryItem[]>, key: string, item: LibraryItem) {
+  const bucket = map.get(key);
+  if (bucket) bucket.push(item);
+  else map.set(key, [item]);
+}
+
+// Genres are multi-valued, so an item appears under each of its genres.
+function groupByGenre(items: LibraryItem[]): Group[] {
+  const map = new Map<string, LibraryItem[]>();
+  for (const it of items) {
+    const genres = it.metadata?.genres ?? [];
+    if (genres.length === 0) pushMap(map, "Ungrouped", it);
+    else for (const g of genres) pushMap(map, g, it);
+  }
+  return [...map.entries()]
+    .sort((a, b) => {
+      if (a[0] === "Ungrouped") return 1;
+      if (b[0] === "Ungrouped") return -1;
+      return a[0].localeCompare(b[0]);
+    })
+    .map(([label, its]) => ({ label, items: byTitle(its) }));
+}
+
+// Collections only include items that actually belong to one.
+function groupByCollection(items: LibraryItem[]): Group[] {
+  const map = new Map<string, LibraryItem[]>();
+  for (const it of items) {
+    const c = it.metadata?.collection;
+    if (c) pushMap(map, c, it);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([label, its]) => ({ label, items: byTitle(its) }));
+}
+
+/** Turn a library's flat item list into the sections a given view shows. */
+function buildView(view: ViewMode, items: LibraryItem[]): Group[] {
+  switch (view) {
+    case "all":
+      return [{ label: "", items: byTitle(items) }];
+    case "recent-added":
+      return [{ label: "", items: [...items].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")) }];
+    case "recent-played":
+      return [
+        {
+          label: "",
+          items: items
+            .filter((i) => i.state?.playedAt)
+            .sort((a, b) => (b.state?.playedAt || "").localeCompare(a.state?.playedAt || "")),
+        },
+      ];
+    case "continue":
+      return [
+        {
+          label: "",
+          items: items
+            .filter((i) => (i.state?.position ?? 0) > 0 && !i.state?.finished)
+            .sort((a, b) => (b.state?.playedAt || "").localeCompare(a.state?.playedAt || "")),
+        },
+      ];
+    case "genres":
+      return groupByGenre(items);
+    case "collections":
+      return groupByCollection(items);
+    case "years": {
+      const groups = groupBy(items, fileYear);
+      // Newest year first, "Unknown" last.
+      return groups.sort((a, b) => {
+        if (a.label === "Unknown") return 1;
+        if (b.label === "Unknown") return -1;
+        return Number(b.label) - Number(a.label);
+      });
+    }
+    case "resolution":
+      return groupBy(items, (i) => resBucket(i.height), RES_ORDER);
+    case "duration":
+      return groupBy(items, (i) => durBucket(i.duration), DUR_ORDER);
+    case "filetype":
+      return groupBy(items, (i) => (i.ext || "?").toUpperCase());
+    default:
+      return [];
+  }
+}
+
+function fileGridClass(category: string): string {
+  return cn(
+    "grid gap-4",
+    category === "music"
+      ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+      : category === "videos"
+        ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+  );
+}
+
+function FileGrid({
+  category,
+  items,
+  onPlayAt,
+}: {
+  category: LibraryCategory;
+  items: LibraryItem[];
+  onPlayAt?: (list: LibraryItem[], index: number) => void;
+}) {
+  return (
+    <div className={fileGridClass(category)}>
+      {items.map((item, i) => (
+        <FileTile
+          key={item.id}
+          item={item}
+          aspect={aspectByCategory[category]}
+          onPlay={onPlayAt ? () => onPlayAt(items, i) : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Explorer                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -183,6 +392,7 @@ export function CategoryExplorer({ category }: { category: LibraryCategory }) {
   const [libraryId, setLibraryId] = useState<string | null>(null);
   const [folder, setFolder] = useState("");
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<ViewMode>("folder");
 
   const activeLibrary = libraries.find((l) => l.id === libraryId) ?? null;
 
@@ -208,9 +418,24 @@ export function CategoryExplorer({ category }: { category: LibraryCategory }) {
     setLibraryId(id);
     setFolder("");
     setQuery("");
+    setView("folder");
   }
 
-  const crumbs = folder ? folder.split("/") : [];
+  function backToLibraries() {
+    setLibraryId(null);
+    setFolder("");
+    setQuery("");
+    setView("folder");
+  }
+
+  // Switching to a non-folder view abandons the folder path (it no longer
+  // applies), so browsing stays coherent.
+  function selectView(v: ViewMode) {
+    setView(v);
+    if (v !== "folder") setFolder("");
+  }
+
+  const crumbs = view === "folder" && folder ? folder.split("/") : [];
 
   return (
     <div className="space-y-4">
@@ -218,7 +443,7 @@ export function CategoryExplorer({ category }: { category: LibraryCategory }) {
       <div className="glass-card flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center">
         <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1 text-sm">
           <button
-            onClick={() => { setLibraryId(null); setFolder(""); setQuery(""); }}
+            onClick={backToLibraries}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-2 py-1 transition-colors hover:bg-surface-3",
               !activeLibrary ? "text-foreground" : "text-muted hover:text-foreground"
@@ -273,6 +498,26 @@ export function CategoryExplorer({ category }: { category: LibraryCategory }) {
         )}
       </div>
 
+      {/* View selector — instant client-side re-grouping of a library */}
+      {activeLibrary && (
+        <div className="no-scrollbar -mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
+          {viewsForCategory(category).map((opt) => (
+            <button
+              key={opt.v}
+              onClick={() => selectView(opt.v)}
+              className={cn(
+                "shrink-0 snap-start rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                view === opt.v
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "border-stroke bg-surface-2/60 text-muted hover:text-foreground"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Library selection level */}
       {!activeLibrary ? (
         libLoading ? (
@@ -291,6 +536,22 @@ export function CategoryExplorer({ category }: { category: LibraryCategory }) {
               />
             ))}
           </div>
+        )
+      ) : view !== "folder" ? (
+        itemsLoading ? (
+          <TileSkeletons />
+        ) : (
+          <ViewSections
+            category={category}
+            groups={buildView(view, searching ? filtered : items).filter((g) => g.items.length > 0)}
+            searching={searching}
+            hint={
+              view === "genres" || view === "collections"
+                ? "Open an item and hit Refresh Metadata to populate this view."
+                : undefined
+            }
+            onPlayAt={category === "music" ? player.playQueue : undefined}
+          />
         )
       ) : itemsLoading ? (
         <TileSkeletons />
@@ -319,32 +580,58 @@ export function CategoryExplorer({ category }: { category: LibraryCategory }) {
             </div>
           )}
           {level.files.length > 0 && (
-            <div
-              className={cn(
-                "grid gap-4",
-                category === "music"
-                  ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
-                  : category === "videos"
-                    ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                    : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
-              )}
-            >
-              {level.files.map((item, i) => (
-                <FileTile
-                  key={item.id}
-                  item={item}
-                  aspect={aspectByCategory[category]}
-                  onPlay={
-                    category === "music"
-                      ? () => player.playQueue(level.files, i)
-                      : undefined
-                  }
-                />
-              ))}
-            </div>
+            <FileGrid
+              category={category}
+              items={level.files}
+              onPlayAt={category === "music" ? player.playQueue : undefined}
+            />
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ViewSections({
+  category,
+  groups,
+  searching,
+  hint,
+  onPlayAt,
+}: {
+  category: LibraryCategory;
+  groups: Group[];
+  searching: boolean;
+  hint?: string;
+  onPlayAt?: (list: LibraryItem[], index: number) => void;
+}) {
+  if (groups.length === 0) {
+    return (
+      <div className="glass-card flex flex-col items-center py-20 text-center">
+        <FolderOpen className="mb-3 h-8 w-8 text-muted-2" />
+        <p className="text-sm font-medium text-foreground">{searching ? "No matches" : "Nothing here yet"}</p>
+        <p className="mt-1 text-xs text-muted">
+          {searching ? "Try a different search." : hint ?? "This view has no items."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {groups.map((g) => (
+        <section key={g.label || "all"} className="space-y-3">
+          {g.label && (
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              {g.label}
+              <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] font-normal text-muted-2">
+                {g.items.length}
+              </span>
+            </h3>
+          )}
+          <FileGrid category={category} items={g.items} onPlayAt={onPlayAt} />
+        </section>
+      ))}
     </div>
   );
 }

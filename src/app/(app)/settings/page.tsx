@@ -1,13 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Cpu, HardDrive, Info, User, Zap } from "lucide-react";
+import { Clapperboard, Cpu, HardDrive, Info, User, Zap } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { apiGet, apiSend } from "@/lib/client-api";
 import { useToast } from "@/components/providers/toast-provider";
 import { useUser } from "@/components/providers/user-provider";
 import { PageHeader } from "@/components/layout/page-header";
 import { LibraryManager } from "@/components/settings/library-manager";
+import { PhotoLibraryManager } from "@/components/settings/photo-library-manager";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -19,6 +21,12 @@ interface SettingsData {
   downloadAudioPath: string;
   browseRoots: { path: string; kind: string }[];
   playback: { hwAccel: "off" | "auto" | "nvenc" | "vaapi" | "qsv" };
+  metadata?: {
+    tmdbConfigured: boolean;
+    omdbConfigured: boolean;
+    tmdbKeyMasked: string;
+    omdbKeyMasked: string;
+  };
 }
 
 const HWACCEL_OPTIONS: { value: SettingsData["playback"]["hwAccel"]; label: string; hint: string }[] = [
@@ -56,6 +64,9 @@ export default function SettingsPage() {
 
       {/* Libraries */}
       <LibraryManager isAdmin={isAdmin} />
+
+      {/* Photo libraries */}
+      <PhotoLibraryManager isAdmin={isAdmin} />
 
       {/* Playback / hardware acceleration */}
       <section aria-label="Playback" className="glass-card p-6">
@@ -115,6 +126,9 @@ export default function SettingsPage() {
         )}
       </section>
 
+      {/* Metadata providers (admin) */}
+      {isAdmin && <MetadataSettings data={data} />}
+
       {/* Download folders (read-only info) */}
       <section aria-label="Storage paths" className="glass-card p-6">
         <div className="mb-4 flex items-center gap-2.5">
@@ -163,6 +177,96 @@ export default function SettingsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function MetadataSettings({ data }: { data?: SettingsData }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [tmdb, setTmdb] = useState("");
+  const [omdb, setOmdb] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: (payload: { tmdbKey?: string; omdbKey?: string }) =>
+      apiSend("POST", "/api/settings", payload),
+    onSuccess: () => {
+      toast("Metadata keys saved", "success");
+      setTmdb("");
+      setOmdb("");
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    },
+    onError: (err: Error) => toast(err.message, "error"),
+  });
+
+  const inputCls =
+    "w-full h-10 px-3 rounded-lg bg-surface-2 border border-stroke text-sm text-foreground placeholder:text-muted-2 focus:border-primary/50 focus:outline-none";
+
+  return (
+    <section aria-label="Metadata" className="glass-card p-6">
+      <div className="mb-4 flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <Clapperboard className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Metadata Providers</h2>
+          <p className="text-sm text-muted">
+            Posters, overviews and cast for movies &amp; TV. TMDB is primary; OMDb is a fallback.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <label className="block">
+          <span className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
+            TMDB API Key
+            {data?.metadata?.tmdbConfigured && (
+              <Badge size="sm" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                {data.metadata.tmdbKeyMasked}
+              </Badge>
+            )}
+          </span>
+          <input
+            className={inputCls}
+            value={tmdb}
+            onChange={(e) => setTmdb(e.target.value)}
+            placeholder="Paste a TMDB v3 API key to set or replace"
+          />
+          <span className="mt-1 block text-xs text-muted-2">
+            Free from themoviedb.org → Settings → API.
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 flex items-center gap-2 text-sm font-medium text-foreground">
+            OMDb API Key
+            {data?.metadata?.omdbConfigured && (
+              <Badge size="sm" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                {data.metadata.omdbKeyMasked}
+              </Badge>
+            )}
+          </span>
+          <input
+            className={inputCls}
+            value={omdb}
+            onChange={(e) => setOmdb(e.target.value)}
+            placeholder="Optional fallback — omdbapi.com"
+          />
+        </label>
+
+        <button
+          onClick={() =>
+            mutation.mutate({
+              ...(tmdb.trim() ? { tmdbKey: tmdb.trim() } : {}),
+              ...(omdb.trim() ? { omdbKey: omdb.trim() } : {}),
+            })
+          }
+          disabled={mutation.isPending || (!tmdb.trim() && !omdb.trim())}
+          className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          Save keys
+        </button>
+      </div>
+    </section>
   );
 }
 

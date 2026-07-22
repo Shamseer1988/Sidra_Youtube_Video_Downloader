@@ -10,6 +10,7 @@ import { useToast } from "@/components/providers/toast-provider";
 import { usePlayer } from "@/components/player/player-provider";
 import { VideoPlayer } from "@/components/player/video-player";
 import { AddToPlaylistModal } from "@/components/media/add-to-playlist";
+import { MediaMetadata } from "@/components/media/media-metadata";
 import type { LibraryItem } from "@/lib/types";
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -98,7 +99,7 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
           <p className="text-xs text-muted-2">Playing in the bar below — it keeps going as you browse.</p>
         </div>
       ) : (
-        <VideoPlayer item={item} startAt={state.position > 3 ? state.position : 0} />
+        <VideoPlayer item={item} startAt={!state.finished && state.position > 3 ? state.position : 0} />
       )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -128,6 +129,8 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
           </ActionButton>
         </div>
       </div>
+
+      <MediaMetadata itemId={id} metadata={item.metadata} canEdit />
 
       {playlistOpen && <AddToPlaylistModal itemId={id} onClose={() => setPlaylistOpen(false)} />}
     </div>

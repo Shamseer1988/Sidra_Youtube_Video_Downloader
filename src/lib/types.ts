@@ -14,6 +14,75 @@ export interface MediaState {
   liked: boolean;
   position: number;
   finished: boolean;
+  playedAt?: string | null;
+}
+
+export interface AudioTrack {
+  id: number;
+  label: string;
+  language: string | null;
+  channels?: number | null;
+  isDefault?: boolean;
+}
+
+export interface SubtitleTrack {
+  id: number;
+  label: string;
+  language: string | null;
+  source: "embedded" | "external";
+}
+
+export interface ItemMetadata {
+  provider: string | null;
+  mediaKind: string | null;
+  title: string | null;
+  overview: string | null;
+  tagline: string | null;
+  releaseDate: string | null;
+  year: number | null;
+  runtime: number | null;
+  rating: number | null;
+  genres: string[];
+  cast: { name: string; character: string | null }[];
+  director: string | null;
+  studio: string | null;
+  logo: string | null;
+  artist: string | null;
+  poster: string | null;
+  backdrop: string | null;
+  collection: string | null;
+  edited: boolean;
+}
+
+export interface PhotoItem {
+  id: string;
+  filename: string;
+  folder: string;
+  ext: string | null;
+  size: number;
+  width: number | null;
+  height: number | null;
+  takenAt: string | null;
+  camera: string | null;
+  lens: string | null;
+  iso: number | null;
+  fNumber: number | null;
+  focalLength: number | null;
+  exposure: string | null;
+  gpsLat: number | null;
+  gpsLng: number | null;
+  favorite: boolean;
+  archived: boolean;
+  hidden: boolean;
+  rating: number;
+  hasThumbnail: boolean;
+}
+
+export interface PhotoLibrarySummary {
+  id: string;
+  name: string;
+  path: string;
+  photoCount: number;
 }
 
 export interface LibraryItem {
@@ -28,11 +97,14 @@ export interface LibraryItem {
   duration: number | null;
   width: number | null;
   height: number | null;
+  vcodec?: string | null;
+  acodec?: string | null;
   ext: string | null;
   thumbnail: string | null;
   createdAt: string;
   mtime: string;
   state: MediaState;
+  metadata?: ItemMetadata | null;
 }
 
 export interface DownloadJob {

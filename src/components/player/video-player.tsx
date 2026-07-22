@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AudioLines,
   Check,
   Loader2,
   Maximize,
@@ -9,29 +10,66 @@ import {
   PictureInPicture2,
   Play,
   Settings2,
+  Subtitles,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { cn, formatDuration } from "@/lib/utils";
-import type { LibraryItem } from "@/lib/types";
+import { apiGet } from "@/lib/client-api";
+import type { AudioTrack, LibraryItem, SubtitleTrack } from "@/lib/types";
 
 interface Quality {
   label: string;
   height: number | null; // null = original / direct play
 }
 
+// Containers a browser can play natively. Anything else (VOB, MPG, AVI,
+// WMV, TS, M2TS, FLV, and often MKV/MOV) must be transcoded by ffmpeg,
+// so those default to a transcoded rung instead of a failing direct play.
+const DIRECT_PLAY_EXTS = new Set(["mp4", "m4v", "webm", "mov"]);
+// Browser-decodable codecs. When the scanner captured codec info we use it
+// to catch an .mp4 that wraps an incompatible codec (e.g. MPEG-4/Xvid, or
+// HEVC which most browsers can't decode); otherwise we fall back to the
+// container whitelist alone.
+const DIRECT_PLAY_VCODECS = new Set(["h264", "avc1", "vp8", "vp9", "av1"]);
+const DIRECT_PLAY_ACODECS = new Set(["aac", "mp3", "opus", "vorbis", ""]);
+
+function isDirectPlayable(item: LibraryItem): boolean {
+  const ext = (item.ext ?? "").toLowerCase().replace(/^\./, "");
+  if (!DIRECT_PLAY_EXTS.has(ext)) return false;
+  // If we know the codecs, require both to be browser-decodable.
+  if (item.vcodec && !DIRECT_PLAY_VCODECS.has(item.vcodec.toLowerCase())) return false;
+  if (item.acodec && !DIRECT_PLAY_ACODECS.has(item.acodec.toLowerCase())) return false;
+  return true;
+}
+
 function qualitiesFor(item: LibraryItem): Quality[] {
-  const q: Quality[] = [{ label: "Original", height: null }];
-  const h = item.height ?? 1080;
-  for (const height of [1080, 720, 480]) {
-    if (height < h) q.push({ label: `${height}p`, height });
-  }
+  const native = item.height ?? 1080;
+  const direct = isDirectPlayable(item);
+  const q: Quality[] = [];
+
+  if (direct) q.push({ label: "Original", height: null });
+
+  // Transcode ladder, capped at the source height (never upscale).
+  const rungs = new Set<number>([Math.min(native, 1080)]);
+  for (const h of [1080, 720, 480]) if (h < native) rungs.add(h);
+  for (const h of [...rungs].sort((a, b) => b - a)) q.push({ label: `${h}p`, height: h });
+
+  // For non-native containers, still expose a last-resort direct attempt.
+  if (!direct) q.push({ label: "Original", height: null });
+
   return q;
 }
 
-function srcFor(item: LibraryItem, quality: Quality, start: number): string {
+function srcFor(
+  item: LibraryItem,
+  quality: Quality,
+  start: number,
+  audioIndex: number | null,
+): string {
   if (quality.height === null) return `/api/stream/${item.id}`;
-  return `/api/transcode/${item.id}?height=${quality.height}&start=${Math.floor(start)}`;
+  const audio = audioIndex !== null ? `&audio=${audioIndex}` : "";
+  return `/api/transcode/${item.id}?height=${quality.height}&start=${Math.floor(start)}${audio}`;
 }
 
 /**
@@ -55,7 +93,33 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
   const [showQuality, setShowQuality] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
 
+  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+  const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([]);
+  const [audioIndex, setAudioIndex] = useState<number | null>(null);
+  const [subTrack, setSubTrack] = useState<number | null>(null);
+  const [showSubs, setShowSubs] = useState(false);
+  const [showAudio, setShowAudio] = useState(false);
+
   const duration = item.duration ?? 0;
+
+  // Subtitle cues are in absolute file time; a transcode restarts its clock
+  // at `baseOffset`, so shift the subtitle by the same offset to stay synced.
+  const subOffset = quality.height === null ? 0 : Math.floor(baseOffset);
+
+  // Discover embedded/sidecar audio and subtitle tracks once.
+  useEffect(() => {
+    let cancelled = false;
+    apiGet<{ audio: AudioTrack[]; subtitles: SubtitleTrack[] }>(`/api/library/${item.id}/tracks`)
+      .then((t) => {
+        if (cancelled) return;
+        setAudioTracks(t.audio ?? []);
+        setSubtitleTracks(t.subtitles ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
 
   const saveProgress = useCallback(
     (position: number, finished = false) => {
@@ -70,7 +134,7 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.src = srcFor(item, quality, baseOffset);
+    v.src = srcFor(item, quality, baseOffset, audioIndex);
     if (baseOffset > 0 && quality.height === null) {
       const onMeta = () => {
         v.currentTime = baseOffset;
@@ -82,6 +146,21 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Show/hide the active subtitle track (re-applied after each src reload).
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const apply = () => {
+      const tt = v.textTracks;
+      for (let i = 0; i < tt.length; i++) {
+        tt[i].mode = subTrack === null ? "disabled" : "showing";
+      }
+    };
+    apply();
+    v.addEventListener("loadeddata", apply);
+    return () => v.removeEventListener("loadeddata", apply);
+  }, [subTrack, subOffset]);
+
   function changeQuality(q: Quality) {
     const v = videoRef.current;
     if (!v) return;
@@ -89,7 +168,10 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
     setShowQuality(false);
     setQuality(q);
     setBaseOffset(current);
-    v.src = srcFor(item, q, current);
+    // Direct play cannot carry an alternate audio track — reset to default.
+    const nextAudio = q.height === null ? null : audioIndex;
+    if (q.height === null) setAudioIndex(null);
+    v.src = srcFor(item, q, current, nextAudio);
     if (q.height === null && current > 0) {
       const onMeta = () => {
         v.currentTime = current;
@@ -97,6 +179,25 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
       };
       v.addEventListener("loadedmetadata", onMeta);
     }
+    v.play().catch(() => {});
+  }
+
+  // Selecting an audio track requires transcoding (browsers can't switch
+  // embedded audio on direct play), so force a transcode rung if needed.
+  function changeAudio(idx: number) {
+    const v = videoRef.current;
+    if (!v) return;
+    const current = baseOffset + v.currentTime;
+    setShowAudio(false);
+    setAudioIndex(idx);
+    let q = quality;
+    if (q.height === null) {
+      q = qualities.find((x) => x.height !== null) ?? { label: "720p", height: 720 };
+      setQuality(q);
+    }
+    setBaseOffset(current);
+    setAbsTime(current);
+    v.src = srcFor(item, q, current, idx);
     v.play().catch(() => {});
   }
 
@@ -110,7 +211,7 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
       // Transcoded streams aren't seekable — reload at the new offset.
       setBaseOffset(target);
       setAbsTime(target);
-      v.src = srcFor(item, quality, target);
+      v.src = srcFor(item, quality, target, audioIndex);
       v.play().catch(() => {});
     }
   }
@@ -149,7 +250,7 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
     >
       <video
         ref={videoRef}
-        poster={item.thumbnail ? `/api/thumbnail/${item.id}` : undefined}
+        poster={`/api/thumbnail/${item.id}?size=800`}
         className="h-full w-full bg-black"
         onClick={togglePlay}
         onPlay={() => setPlaying(true)}
@@ -169,7 +270,18 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
             saveProgress(duration, true);
           }
         }}
-      />
+      >
+        {subTrack !== null && (
+          <track
+            key={`${subTrack}:${subOffset}`}
+            kind="subtitles"
+            default
+            src={`/api/library/${item.id}/subtitle?track=${subTrack}&offset=${subOffset}`}
+            label={subtitleTracks.find((s) => s.id === subTrack)?.label ?? "Subtitles"}
+            srcLang={subtitleTracks.find((s) => s.id === subTrack)?.language ?? undefined}
+          />
+        )}
+      </video>
 
       {buffering && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -249,6 +361,80 @@ export function VideoPlayer({ item, startAt = 0 }: { item: LibraryItem; startAt?
           </span>
 
           <div className="ml-auto flex items-center gap-1">
+            {/* Subtitles */}
+            {subtitleTracks.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSubs((s) => !s)}
+                  aria-label="Subtitles"
+                  className={cn(
+                    "flex items-center rounded-lg px-2 py-1 hover:bg-white/10",
+                    subTrack !== null && "text-primary"
+                  )}
+                >
+                  <Subtitles className="h-4 w-4" />
+                </button>
+                {showSubs && (
+                  <div className="absolute bottom-full right-0 mb-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-black/90 p-1 backdrop-blur-xl">
+                    <button
+                      onClick={() => {
+                        setSubTrack(null);
+                        setShowSubs(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-white/85 hover:bg-white/10"
+                    >
+                      {subTrack === null ? <Check className="h-3.5 w-3.5 text-primary" /> : <span className="w-3.5" />}
+                      Off
+                    </button>
+                    {subtitleTracks.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => {
+                          setSubTrack(s.id);
+                          setShowSubs(false);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-white/85 hover:bg-white/10"
+                      >
+                        {subTrack === s.id ? <Check className="h-3.5 w-3.5 text-primary" /> : <span className="w-3.5" />}
+                        <span className="truncate">{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Audio track */}
+            {audioTracks.length > 1 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowAudio((s) => !s)}
+                  aria-label="Audio track"
+                  className="flex items-center rounded-lg px-2 py-1 hover:bg-white/10"
+                >
+                  <AudioLines className="h-4 w-4" />
+                </button>
+                {showAudio && (
+                  <div className="absolute bottom-full right-0 mb-2 w-48 overflow-hidden rounded-xl border border-white/10 bg-black/90 p-1 backdrop-blur-xl">
+                    {audioTracks.map((a) => {
+                      const activeId = audioIndex ?? audioTracks.find((t) => t.isDefault)?.id ?? 0;
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => changeAudio(a.id)}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-white/85 hover:bg-white/10"
+                        >
+                          {activeId === a.id ? <Check className="h-3.5 w-3.5 text-primary" /> : <span className="w-3.5" />}
+                          <span className="truncate">{a.label}</span>
+                          {a.channels ? <span className="ml-auto text-[10px] text-white/40">{a.channels}ch</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Quality */}
             <div className="relative">
               <button

@@ -30,17 +30,21 @@ export function FolderPicker({
   open,
   onOpenChange,
   onPick,
+  endpoint = "/api/browse",
+  queryParam = "path",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (path: string) => void;
+  endpoint?: string;
+  queryParam?: string;
 }) {
   const [path, setPath] = useState<string | null>(null);
 
   const { data, isFetching } = useQuery({
-    queryKey: ["browse", path],
+    queryKey: ["browse", endpoint, path],
     queryFn: () =>
-      apiGet<BrowseResult>(`/api/browse${path ? `?path=${encodeURIComponent(path)}` : ""}`),
+      apiGet<BrowseResult>(`${endpoint}${path ? `?${queryParam}=${encodeURIComponent(path)}` : ""}`),
     enabled: open,
   });
 

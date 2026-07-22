@@ -73,9 +73,10 @@ export function MediaCard({
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={`/api/thumbnail/${item.id}`}
+              src={`/api/thumbnail/${item.id}?size=400`}
               alt={item.title}
               loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.visibility = "hidden";

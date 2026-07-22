@@ -40,10 +40,12 @@ EXPOSE 3000
 # Sensible in-container defaults (override via compose / env).
 ENV DATABASE_URL="file:/data/app.db" \
     THUMBNAIL_CACHE_DIR="/data/thumbnails" \
+    PHOTO_THUMBNAIL_CACHE_DIR="/data/photo-thumbnails" \
     DOWNLOAD_VIDEO_PATH="/downloads/videos" \
     DOWNLOAD_AUDIO_PATH="/downloads/audio" \
     MEDIA_VIDEO_PATH="/media/videos" \
-    MEDIA_AUDIO_PATH="/media/music"
+    MEDIA_AUDIO_PATH="/media/music" \
+    MEDIA_PHOTO_PATH="/media/photos"
 
 ENTRYPOINT ["/usr/bin/tini", "--", "docker-entrypoint.sh"]
 CMD ["npm", "start"]

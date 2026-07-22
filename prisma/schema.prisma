@@ -87,6 +87,8 @@ model LibraryItem {
   duration   Float?
   width       Int?
   height      Int?
+  vcodec     String? // primary video codec (for direct-play detection)
+  acodec     String? // primary audio codec
   ext        String?
   thumbnail  String? // relative cache path if generated
   addedById  String?  // user who downloaded it, if any
@@ -95,11 +97,42 @@ model LibraryItem {
 
   states     UserMediaState[]
   playlistItems PlaylistItem[]
+  metadata   ItemMetadata?
 
   @@index([type, source])
   @@index([category])
   @@index([libraryId])
   @@index([mtime])
+}
+
+// Fetched (TMDB/OMDb) or manually-edited metadata for a library item.
+// One row per item; absent until a refresh is run.
+model ItemMetadata {
+  id          String      @id @default(cuid())
+  itemId      String      @unique
+  item        LibraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  provider    String?     // "tmdb" | "omdb" | "manual"
+  providerId  String?     // provider's id for re-fetching
+  mediaKind   String?     // "movie" | "tv"
+  title       String?     // canonical title
+  overview    String?
+  tagline     String?
+  releaseDate String?
+  year        Int?
+  runtime     Int?        // minutes
+  rating      Float?      // 0–10
+  genres      String?     // JSON string[]
+  cast        String?     // JSON {name, character}[]
+  director    String?
+  studio      String?
+  logo        String?     // studio/network logo URL
+  artist      String?     // primary artist (music)
+  poster      String?     // absolute image URL
+  backdrop    String?     // absolute image URL
+  collection  String?
+  edited      Boolean     @default(false) // manual edits present
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 // Per-user interaction with a library item: favorite, watch-later, like,
@@ -155,4 +188,53 @@ model Setting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ── Photos module ───────────────────────────────────────────────────
+
+// A registered photo folder (e.g. a mounted Synology /photo share).
+model PhotoLibrary {
+  id        String   @id @default(cuid())
+  name      String
+  path      String   @unique
+  createdAt DateTime @default(now())
+
+  photos    Photo[]
+
+  @@index([name])
+}
+
+// A single indexed photo with EXIF-derived metadata.
+model Photo {
+  id          String        @id @default(cuid())
+  path        String        @unique
+  libraryId   String?
+  library     PhotoLibrary? @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  folder      String        @default("") // relative subfolder within its library
+  filename    String
+  ext         String?
+  size        BigInt        @default(0)
+  width       Int?
+  height      Int?
+  takenAt     DateTime?     // EXIF DateTimeOriginal, else file mtime
+  mtime       DateTime      // file modified time on disk
+  camera      String?       // make + model
+  lens        String?
+  iso         Int?
+  fNumber     Float?
+  focalLength Float?
+  exposure    String?
+  gpsLat      Float?
+  gpsLng      Float?
+  thumbnail   String?       // relative cache filename if generated
+  favorite    Boolean       @default(false)
+  archived    Boolean       @default(false)
+  hidden      Boolean       @default(false)
+  rating      Int           @default(0)
+  createdAt   DateTime      @default(now())
+
+  @@index([takenAt])
+  @@index([libraryId])
+  @@index([folder])
+  @@index([favorite])
 }

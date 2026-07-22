@@ -46,6 +46,8 @@ services:
       # you assign it — mounting alone shows no files.
       - /volume1/video:/media/videos:ro
       - /volume1/music:/media/music:ro
+      # Photo share to index in the Photos module (read-only is fine).
+      - /volume1/photo:/media/photos:ro
     # ── Optional: GPU transcoding ──────────────────────────────────────
     # Intel/AMD (VAAPI or QSV): expose the render device, then set
     # FFMPEG_HWACCEL to "vaapi" or "qsv" (above) or in Settings → Playback.

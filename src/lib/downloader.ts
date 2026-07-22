@@ -5,7 +5,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
 import { prisma } from "./prisma";
-import { registerDownloadedFile, ensureThumbnail } from "./media";
+import { registerDownloadedFile, queueThumbnail } from "./media";
 
 // ── Platform detection ──────────────────────────────────────────────
 
@@ -287,7 +287,7 @@ class DownloadQueue {
     const size = fs.statSync(filePath).size;
     const libraryId = await registerDownloadedFile(filePath, dl.mediaType as "video" | "audio", dl.userId);
     if (libraryId && dl.mediaType === "video") {
-      ensureThumbnail(libraryId, filePath).catch(() => {});
+      queueThumbnail(libraryId, filePath, dl.duration);
     }
 
     await prisma.download.update({

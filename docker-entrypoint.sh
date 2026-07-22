@@ -6,7 +6,12 @@ mkdir -p "$(dirname "${DATABASE_URL#file:}")" "$THUMBNAIL_CACHE_DIR" \
   "$DOWNLOAD_VIDEO_PATH" "$DOWNLOAD_AUDIO_PATH" 2>/dev/null || true
 
 echo "[entrypoint] Syncing database schema…"
-npx prisma db push --skip-generate --accept-data-loss
+# NOTE: --accept-data-loss is deliberately omitted. Without it, prisma will
+# refuse (and fail loudly) rather than silently drop columns/tables if the
+# on-disk schema ever drifts — protecting favorites, watch-later, playlists,
+# playback history and downloads from being wiped on a rebuild. Additive
+# schema changes still apply cleanly.
+npx prisma db push --skip-generate
 
 echo "[entrypoint] Ensuring admin account…"
 node prisma/seed.mjs || echo "[entrypoint] seed skipped"

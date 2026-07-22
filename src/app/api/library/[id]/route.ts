@@ -2,17 +2,18 @@ import fs from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, withAuth } from "@/lib/api";
 import { verifyPath } from "@/lib/media";
+import { toStored } from "@/lib/metadata";
 
-// Fetch a single library item with the current user's state.
+// Fetch a single library item with the current user's state and metadata.
 export const GET = withAuth(async (_req, user, ctx) => {
   const { id } = await ctx.params;
   const it = await prisma.libraryItem.findUnique({
     where: { id },
-    include: { states: { where: { userId: user.id } } },
+    include: { states: { where: { userId: user.id } }, metadata: true },
   });
   if (!it) return fail("Not found.", 404);
   const st = it.states[0];
-  const { states, path: _p, ...rest } = it;
+  const { states, metadata, path: _p, ...rest } = it;
   return ok({
     ...rest,
     state: {
@@ -22,6 +23,7 @@ export const GET = withAuth(async (_req, user, ctx) => {
       position: st?.position ?? 0,
       finished: st?.finished ?? false,
     },
+    metadata: metadata ? toStored(metadata) : null,
   });
 });
 

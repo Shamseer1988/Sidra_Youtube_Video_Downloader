@@ -11,8 +11,9 @@ export function buildTranscodeArgs(opts: {
   height: number;
   startSec: number;
   hwAccel: HwAccel;
+  audioIndex?: number | null;
 }): string[] {
-  const { input, height, startSec, hwAccel } = opts;
+  const { input, height, startSec, hwAccel, audioIndex } = opts;
   const args: string[] = ["-hide_banner", "-loglevel", "error"];
 
   // Fast input seek (before -i) for near-instant quality/seek switches.
@@ -24,6 +25,12 @@ export function buildTranscodeArgs(opts: {
   else if (hwAccel === "vaapi") args.push("-hwaccel", "vaapi", "-vaapi_device", "/dev/dri/renderD128");
 
   args.push("-i", input);
+
+  // Pick a specific audio track when requested (multi-language sources),
+  // otherwise let ffmpeg choose the default video + audio streams.
+  if (typeof audioIndex === "number" && audioIndex >= 0) {
+    args.push("-map", "0:v:0", "-map", `0:a:${audioIndex}`);
+  }
 
   // Scale + encode.
   const evenHeight = `-2:${height}`;
