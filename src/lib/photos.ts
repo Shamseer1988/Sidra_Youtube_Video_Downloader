@@ -103,6 +103,22 @@ export async function addPhotoLibrary(input: { name: string; folderPath: string 
     }
     return { ok: false, message: "Folder not found inside the container — is it mounted?" };
   }
+
+  // Reject nested/overlapping libraries — a photo belongs to only one library,
+  // so a folder inside (or containing) an existing library just double-counts.
+  // One root + the Folder view is the intended way to browse subfolders.
+  const existing = await prisma.photoLibrary.findMany({ select: { name: true, path: true } });
+  for (const e of existing) {
+    const ep = path.resolve(e.path);
+    if (resolved === ep) return { ok: false, message: "That folder is already a photo library" };
+    if (resolved.startsWith(ep + path.sep)) {
+      return { ok: false, message: `Already covered by the "${e.name}" library (${e.path}). Use the Photos → Folders view to browse its subfolders.` };
+    }
+    if (ep.startsWith(resolved + path.sep)) {
+      return { ok: false, message: `This folder contains the existing "${e.name}" library (${e.path}). Add one top-level folder and use Folders view instead.` };
+    }
+  }
+
   const name = input.name?.trim() || path.basename(resolved);
   try {
     const lib = await prisma.photoLibrary.create({ data: { name, path: resolved } });
@@ -115,11 +131,17 @@ export async function addPhotoLibrary(input: { name: string; folderPath: string 
 
 export async function removePhotoLibrary(id: string): Promise<{ ok: boolean; message?: string }> {
   try {
-    await prisma.photoLibrary.delete({ where: { id } });
+    // Delete explicitly (fast, single statements) rather than relying on
+    // cascade emulation across thousands of photos — that was timing out.
+    await prisma.$transaction([
+      prisma.albumPhoto.deleteMany({ where: { photo: { libraryId: id } } }),
+      prisma.photo.deleteMany({ where: { libraryId: id } }),
+      prisma.photoLibrary.delete({ where: { id } }),
+    ]);
     await loadPhotoLibraries();
     return { ok: true };
-  } catch {
-    return { ok: false, message: "Library not found" };
+  } catch (e) {
+    return { ok: false, message: (e as Error)?.message?.slice(0, 200) || "Could not remove library" };
   }
 }
 
