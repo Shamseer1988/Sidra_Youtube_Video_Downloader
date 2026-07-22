@@ -54,6 +54,37 @@ export interface ItemMetadata {
   edited: boolean;
 }
 
+export interface PhotoItem {
+  id: string;
+  filename: string;
+  folder: string;
+  ext: string | null;
+  size: number;
+  width: number | null;
+  height: number | null;
+  takenAt: string | null;
+  camera: string | null;
+  lens: string | null;
+  iso: number | null;
+  fNumber: number | null;
+  focalLength: number | null;
+  exposure: string | null;
+  gpsLat: number | null;
+  gpsLng: number | null;
+  favorite: boolean;
+  archived: boolean;
+  hidden: boolean;
+  rating: number;
+  hasThumbnail: boolean;
+}
+
+export interface PhotoLibrarySummary {
+  id: string;
+  name: string;
+  path: string;
+  photoCount: number;
+}
+
 export interface LibraryItem {
   id: string;
   title: string;

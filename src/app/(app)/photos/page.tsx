@@ -1,0 +1,168 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { Heart, Images, Loader2, RefreshCw } from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
+import { PhotoGrid } from "@/components/photos/photo-grid";
+import { PhotoLightbox } from "@/components/photos/photo-lightbox";
+import { usePhotos, usePhotoLibraries } from "@/hooks/use-photos";
+import { apiSend } from "@/lib/client-api";
+import { useUser } from "@/components/providers/user-provider";
+import { useToast } from "@/components/providers/toast-provider";
+import { cn } from "@/lib/utils";
+import type { PhotoItem } from "@/lib/types";
+
+export default function PhotosPage() {
+  const user = useUser();
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [favOnly, setFavOnly] = useState(false);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const [scanning, setScanning] = useState(false);
+
+  const { data: libraries = [] } = usePhotoLibraries();
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = usePhotos({ favorite: favOnly || undefined });
+
+  const photos: PhotoItem[] = useMemo(
+    () => (data?.pages ?? []).flatMap((p) => p.photos),
+    [data],
+  );
+
+  // Infinite scroll sentinel.
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  async function scan() {
+    setScanning(true);
+    try {
+      const res = await apiSend<{ added: number; removed: number }>("POST", "/api/photos/scan");
+      toast(`Scan complete — ${res.added} added, ${res.removed} removed`, "success");
+      qc.invalidateQueries({ queryKey: ["photos"] });
+      qc.invalidateQueries({ queryKey: ["photo-libraries"] });
+    } catch (e) {
+      toast((e as Error).message || "Scan failed", "error");
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  const patchFavorite = (id: string, favorite: boolean) => {
+    qc.setQueryData<typeof data>(["photos", favOnly ? "favorite=1" : ""], (prev) =>
+      prev
+        ? {
+            ...prev,
+            pages: prev.pages.map((pg) => ({
+              ...pg,
+              photos: pg.photos.map((p) => (p.id === id ? { ...p, favorite } : p)),
+            })),
+          }
+        : prev,
+    );
+  };
+
+  const noLibraries = libraries.length === 0;
+
+  return (
+    <div className="mx-auto max-w-[1600px] space-y-5">
+      <PageHeader
+        title="Photos"
+        subtitle={photos.length ? `${photos.length.toLocaleString()} loaded` : "Your photo library"}
+        actions={
+          <>
+            <button
+              onClick={() => setFavOnly((f) => !f)}
+              className={cn(
+                "flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors",
+                favOnly
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "border-stroke bg-surface-2/60 text-muted hover:text-foreground",
+              )}
+            >
+              <Heart className={cn("h-4 w-4", favOnly && "fill-current")} /> Favorites
+            </button>
+            {user.role === "admin" && (
+              <button
+                onClick={scan}
+                disabled={scanning}
+                className="flex h-9 items-center gap-1.5 rounded-lg border border-stroke bg-surface-2/60 px-3 text-sm text-muted hover:text-foreground disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-4 w-4", scanning && "animate-spin")} /> Scan
+              </button>
+            )}
+          </>
+        }
+      />
+
+      {isLoading ? (
+        <div className="flex justify-center py-24">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      ) : photos.length === 0 ? (
+        <EmptyState noLibraries={noLibraries} isAdmin={user.role === "admin"} />
+      ) : (
+        <>
+          <PhotoGrid photos={photos} onOpen={setLightbox} />
+          <div ref={sentinel} className="h-12" />
+          {isFetchingNextPage && (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          )}
+        </>
+      )}
+
+      {lightbox !== null && (
+        <PhotoLightbox
+          photos={photos}
+          index={lightbox}
+          onClose={() => setLightbox(null)}
+          onIndexChange={setLightbox}
+          onFavoriteChange={patchFavorite}
+        />
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ noLibraries, isAdmin }: { noLibraries: boolean; isAdmin: boolean }) {
+  return (
+    <div className="glass-card flex flex-col items-center py-20 text-center">
+      <Images className="mb-3 h-9 w-9 text-muted-2" />
+      <p className="text-base font-semibold text-foreground">
+        {noLibraries ? "No photo library yet" : "No photos indexed"}
+      </p>
+      <p className="mt-1 max-w-sm text-sm text-muted">
+        {noLibraries ? (
+          <>
+            {isAdmin ? (
+              <>
+                Add a mounted photo folder in{" "}
+                <Link href="/settings" className="text-primary hover:underline">Settings → Photos</Link>, then run a scan.
+              </>
+            ) : (
+              "Ask an admin to add a photo folder in Settings."
+            )}
+          </>
+        ) : (
+          "Run a scan to index photos from your library folders."
+        )}
+      </p>
+    </div>
+  );
+}

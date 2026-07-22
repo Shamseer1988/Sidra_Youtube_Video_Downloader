@@ -9,6 +9,7 @@ import { useToast } from "@/components/providers/toast-provider";
 import { useUser } from "@/components/providers/user-provider";
 import { PageHeader } from "@/components/layout/page-header";
 import { LibraryManager } from "@/components/settings/library-manager";
+import { PhotoLibraryManager } from "@/components/settings/photo-library-manager";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -63,6 +64,9 @@ export default function SettingsPage() {
 
       {/* Libraries */}
       <LibraryManager isAdmin={isAdmin} />
+
+      {/* Photo libraries */}
+      <PhotoLibraryManager isAdmin={isAdmin} />
 
       {/* Playback / hardware acceleration */}
       <section aria-label="Playback" className="glass-card p-6">

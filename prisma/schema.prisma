@@ -189,3 +189,52 @@ model Setting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// ── Photos module ───────────────────────────────────────────────────
+
+// A registered photo folder (e.g. a mounted Synology /photo share).
+model PhotoLibrary {
+  id        String   @id @default(cuid())
+  name      String
+  path      String   @unique
+  createdAt DateTime @default(now())
+
+  photos    Photo[]
+
+  @@index([name])
+}
+
+// A single indexed photo with EXIF-derived metadata.
+model Photo {
+  id          String        @id @default(cuid())
+  path        String        @unique
+  libraryId   String?
+  library     PhotoLibrary? @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  folder      String        @default("") // relative subfolder within its library
+  filename    String
+  ext         String?
+  size        BigInt        @default(0)
+  width       Int?
+  height      Int?
+  takenAt     DateTime?     // EXIF DateTimeOriginal, else file mtime
+  mtime       DateTime      // file modified time on disk
+  camera      String?       // make + model
+  lens        String?
+  iso         Int?
+  fNumber     Float?
+  focalLength Float?
+  exposure    String?
+  gpsLat      Float?
+  gpsLng      Float?
+  thumbnail   String?       // relative cache filename if generated
+  favorite    Boolean       @default(false)
+  archived    Boolean       @default(false)
+  hidden      Boolean       @default(false)
+  rating      Int           @default(0)
+  createdAt   DateTime      @default(now())
+
+  @@index([takenAt])
+  @@index([libraryId])
+  @@index([folder])
+  @@index([favorite])
+}

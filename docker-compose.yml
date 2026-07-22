@@ -29,6 +29,8 @@ services:
       # Your existing media libraries to browse & stream (read-only is fine).
       - ./data/library/videos:/media/videos
       - ./data/library/music:/media/music
+      # Photos to index in the Photos module.
+      - ./data/library/photos:/media/photos
     restart: unless-stopped
 
 volumes:
