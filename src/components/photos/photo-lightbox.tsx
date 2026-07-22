@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Download, FolderPlus, Heart, Info, Play, RotateCw, Trash2, X, ZoomIn, ZoomOut, MapPin,
+  ChevronLeft, ChevronRight, Download, FolderPlus, Heart, Info, Pencil, Play, RotateCw, Trash2, X, ZoomIn, ZoomOut, MapPin,
 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { apiSend } from "@/lib/client-api";
@@ -18,6 +18,7 @@ export function PhotoLightbox({
   onAddToAlbum,
   onRemove,
   onSlideshow,
+  onEdit,
   removeLabel = "Remove",
 }: {
   photos: PhotoItem[];
@@ -28,6 +29,7 @@ export function PhotoLightbox({
   onAddToAlbum?: (photoId: string) => void;
   onRemove?: (photoId: string) => void;
   onSlideshow?: (index: number) => void;
+  onEdit?: (photo: PhotoItem) => void;
   removeLabel?: string;
 }) {
   const photo = photos[index];
@@ -101,6 +103,9 @@ export function PhotoLightbox({
             <IconBtn label="Rotate" onClick={() => setRotation((r) => (r + 90) % 360)}><RotateCw className="h-5 w-5" /></IconBtn>
             {onSlideshow && (
               <IconBtn label="Slideshow" onClick={() => onSlideshow(index)}><Play className="h-5 w-5" /></IconBtn>
+            )}
+            {onEdit && (
+              <IconBtn label="Edit" onClick={() => onEdit(photo)}><Pencil className="h-5 w-5" /></IconBtn>
             )}
             <IconBtn label="Favorite" onClick={toggleFav} active={fav}>
               <Heart className={cn("h-5 w-5", fav && "fill-current")} />

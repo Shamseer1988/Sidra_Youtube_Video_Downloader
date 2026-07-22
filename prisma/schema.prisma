@@ -235,6 +235,8 @@ model Photo {
   archived    Boolean       @default(false)
   hidden      Boolean       @default(false)
   rating      Int           @default(0)
+  originalId  String?       // set on edited copies → source photo (non-destructive)
+  edited      Boolean       @default(false)
   createdAt   DateTime      @default(now())
 
   albumPhotos AlbumPhoto[]

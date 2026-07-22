@@ -11,6 +11,7 @@ import { PhotoCalendar } from "@/components/photos/photo-calendar";
 import { PhotoMap } from "@/components/photos/photo-map";
 import { PhotoLightbox } from "@/components/photos/photo-lightbox";
 import { SlideshowPlayer } from "@/components/photos/slideshow-player";
+import { PhotoEditor } from "@/components/photos/photo-editor";
 import { AddToAlbumModal } from "@/components/photos/album-modals";
 import { usePhotos, usePhotoLibraries } from "@/hooks/use-photos";
 import { apiSend } from "@/lib/client-api";
@@ -29,6 +30,7 @@ export default function PhotosPage() {
   const [debounced, setDebounced] = useState("");
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [slideshow, setSlideshow] = useState<number | null>(null);
+  const [editing, setEditing] = useState<PhotoItem | null>(null);
   const [addToAlbum, setAddToAlbum] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
 
@@ -244,12 +246,15 @@ export default function PhotosPage() {
           onFavoriteChange={patchFavorite}
           onAddToAlbum={(photoId) => setAddToAlbum(photoId)}
           onSlideshow={(i) => { setLightbox(null); setSlideshow(i); }}
+          onEdit={(p) => { setLightbox(null); setEditing(p); }}
         />
       )}
 
       {slideshow !== null && photos.length > 0 && (
         <SlideshowPlayer photos={photos} startIndex={slideshow} onClose={() => setSlideshow(null)} />
       )}
+
+      {editing && <PhotoEditor photo={editing} onClose={() => setEditing(null)} />}
 
       {addToAlbum && <AddToAlbumModal photoIds={[addToAlbum]} onClose={() => setAddToAlbum(null)} />}
     </div>

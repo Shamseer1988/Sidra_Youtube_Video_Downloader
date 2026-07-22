@@ -39,10 +39,10 @@ export async function loadPhotoLibraries(): Promise<void> {
   }
 }
 
-/** Every directory the app may read photos from: roots + registered libs. */
+/** Every directory the app may read photos from: roots + registered libs + edits. */
 function allowedPhotoDirs(): string[] {
   if (!loaded) void loadPhotoLibraries();
-  return [...photoRoots(), ...cachedPhotoDirs];
+  return [...photoRoots(), ...cachedPhotoDirs, config.photoEditsDir].filter(Boolean);
 }
 
 /** Resolve a photo path, verifying it is still allowed and exists. */
@@ -456,6 +456,55 @@ type PhotoRow = { path: string; thumbnail: string | null; size: bigint } & Recor
 export function photoDTO(p: PhotoRow) {
   const { path: _path, thumbnail, ...rest } = p;
   return { ...rest, size: Number(p.size), hasThumbnail: !!thumbnail };
+}
+
+/**
+ * Save an edited image as a NEW photo (non-destructive — the original is
+ * never modified). The copy lands in the writable edits dir, links back to
+ * the source via originalId, and inherits its capture time so it sits beside
+ * the original in the timeline.
+ */
+export async function saveEditedPhoto(
+  originalId: string,
+  buffer: Buffer,
+  opts: { ext: string; width?: number; height?: number },
+): Promise<ReturnType<typeof photoDTO> | null> {
+  const original = await prisma.photo.findUnique({ where: { id: originalId } });
+  if (!original) return null;
+
+  await fsp.mkdir(config.photoEditsDir, { recursive: true });
+  const ext = opts.ext.replace(/^\./, "").toLowerCase() || "jpg";
+  const base = path.basename(original.filename, path.extname(original.filename));
+  const filename = `${base}-edited-${Date.now()}.${ext}`;
+  const filePath = path.join(config.photoEditsDir, filename);
+  await fsp.writeFile(filePath, buffer);
+
+  const taken = original.takenAt ?? new Date();
+  const created = await prisma.photo.create({
+    data: {
+      path: filePath,
+      libraryId: null,
+      folder: "Edited",
+      filename,
+      ext,
+      size: BigInt(buffer.length),
+      width: opts.width ?? null,
+      height: opts.height ?? null,
+      takenAt: taken,
+      takenYear: taken.getFullYear(),
+      takenMonth: taken.getMonth() + 1,
+      takenDay: taken.getDate(),
+      mtime: new Date(),
+      camera: original.camera,
+      lens: original.lens,
+      gpsLat: original.gpsLat,
+      gpsLng: original.gpsLng,
+      originalId,
+      edited: true,
+    },
+  });
+  queuePhotoThumbnail(created.id, filePath);
+  return photoDTO(created);
 }
 
 export function photoContentType(file: string): string {
