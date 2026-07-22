@@ -18,6 +18,7 @@ export interface PhotoQuery {
   month?: number;
   day?: number;
   ext?: string;
+  folder?: string;
 }
 
 export function usePhotos(params: PhotoQuery = {}) {
@@ -30,6 +31,7 @@ export function usePhotos(params: PhotoQuery = {}) {
   if (params.month) base.set("month", String(params.month));
   if (params.day) base.set("day", String(params.day));
   if (params.ext) base.set("ext", params.ext);
+  if (params.folder !== undefined) base.set("folder", params.folder);
 
   return useInfiniteQuery({
     queryKey: ["photos", base.toString()],
@@ -40,6 +42,18 @@ export function usePhotos(params: PhotoQuery = {}) {
       return apiGet<PhotoPage>(`/api/photos?${qs.toString()}`);
     },
     getNextPageParam: (last) => last.nextCursor,
+  });
+}
+
+export interface FolderCount {
+  folder: string;
+  count: number;
+}
+
+export function usePhotoFolders() {
+  return useQuery({
+    queryKey: ["photo-folders"],
+    queryFn: () => apiGet<FolderCount[]>("/api/photos/folders"),
   });
 }
 

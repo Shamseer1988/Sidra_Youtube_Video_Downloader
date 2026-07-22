@@ -96,6 +96,7 @@ export interface PhotoSearchParams {
   day?: number;
   camera?: string;
   ext?: string;
+  folder?: string; // exact folder match ("" = library root)
 }
 
 /** Build the Prisma where clause for a photo query (base + parsed search). */
@@ -116,6 +117,7 @@ export function buildPhotoWhere(params: PhotoSearchParams): Prisma.PhotoWhereInp
   if (params.day) and.push({ takenDay: params.day });
   if (params.camera) and.push({ camera: { contains: params.camera } });
   if (params.ext) and.push({ ext: params.ext.toLowerCase() });
+  if (params.folder !== undefined) and.push({ folder: params.folder });
 
   // Natural-language query.
   if (params.q?.trim()) {
