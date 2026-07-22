@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, CornerLeftUp, Folder, FolderOpen, HardDrive, Loader2 } from "lucide-react";
+import { AlertTriangle, ChevronRight, CornerLeftUp, Folder, FolderOpen, HardDrive, Loader2 } from "lucide-react";
 import { apiGet } from "@/lib/client-api";
 import {
   Dialog,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 interface BrowseEntry {
   name: string;
   path: string;
+  readable?: boolean;
 }
 interface BrowseResult {
   ok: boolean;
@@ -81,6 +82,12 @@ export function FolderPicker({
             </div>
           ) : (
             <>
+              {data && data.ok === false && (
+                <div className="mb-1.5 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{data.message}</span>
+                </div>
+              )}
               {data && !data.atRoot && data.parent !== null && (
                 <button
                   onClick={() => setPath(data.parent)}
@@ -89,7 +96,7 @@ export function FolderPicker({
                   <CornerLeftUp className="h-4 w-4" /> Up one level
                 </button>
               )}
-              {data?.dirs.length === 0 && (
+              {data?.ok !== false && data?.dirs.length === 0 && (
                 <p className="px-3 py-8 text-center text-sm text-muted-2">
                   No subfolders here — you can add this folder itself.
                 </p>
@@ -98,7 +105,9 @@ export function FolderPicker({
                 <button
                   key={d.path}
                   onClick={() => setPath(d.path)}
-                  className="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-surface-3"
+                  disabled={d.readable === false}
+                  title={d.readable === false ? "Not readable by the container user" : undefined}
+                  className="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {data.atRoot ? (
                     <HardDrive className="h-4 w-4 shrink-0 text-accent" />
@@ -106,7 +115,11 @@ export function FolderPicker({
                     <Folder className="h-4 w-4 shrink-0 text-primary" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{d.name}</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-2 opacity-0 transition-opacity group-hover:opacity-100" />
+                  {d.readable === false ? (
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-2 opacity-0 transition-opacity group-hover:opacity-100" />
+                  )}
                 </button>
               ))}
             </>

@@ -30,6 +30,8 @@ services:
       # Can also be changed live in Settings → Playback. Leave "off" unless
       # you pass a GPU device through (see the commented "devices" block below).
       FFMPEG_HWACCEL: "off"
+      # In-container path of the mounted photo share (matches the volume below).
+      MEDIA_PHOTO_PATH: "/media/photos"
       # Run as your NAS user so downloaded files get sane ownership.
       # Find yours via `id your-user` over SSH.
       # PUID / PGID are applied by the "user" key below.
@@ -47,6 +49,13 @@ services:
       - /volume1/video:/media/videos:ro
       - /volume1/music:/media/music:ro
       # Photo share to index in the Photos module (read-only is fine).
+      # NOTE: Synology's built-in "photo" share is permission-restricted and
+      # the "user: 1026:100" above often CANNOT read it, so the Photos folder
+      # picker shows "permission denied". Fix by either:
+      #   (a) Control Panel → Shared Folder → photo → Edit → Permissions:
+      #       give your user (UID 1026) Read access; or
+      #   (b) point this at a normal shared folder you own, e.g.
+      #       - /volume1/photos:/media/photos:ro
       - /volume1/photo:/media/photos:ro
     # ── Optional: GPU transcoding ──────────────────────────────────────
     # Intel/AMD (VAAPI or QSV): expose the render device, then set
