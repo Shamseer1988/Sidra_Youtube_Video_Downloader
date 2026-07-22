@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { Readable } from "node:stream";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
@@ -22,9 +23,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const thumb = await ensurePhotoThumbnail(id, filePath, size);
   if (!thumb || !fs.existsSync(thumb)) return new Response("No thumbnail", { status: 404 });
 
+  const contentType = path.extname(thumb).toLowerCase() === ".webp" ? "image/webp" : "image/jpeg";
   const webStream = Readable.toWeb(fs.createReadStream(thumb)) as ReadableStream;
   return new Response(webStream, {
     status: 200,
-    headers: { "Content-Type": "image/webp", "Cache-Control": "public, max-age=2592000" },
+    headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=2592000" },
   });
 }

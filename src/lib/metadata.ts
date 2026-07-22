@@ -91,14 +91,27 @@ export function cleanTitle(raw: string): { title: string; year: number | null } 
 
 // ── TMDB ────────────────────────────────────────────────────────────
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+async function fetchJson<T>(url: string, headers?: Record<string, string>): Promise<T | null> {
   try {
-    const res = await fetch(url, { headers: { accept: "application/json" } });
+    const res = await fetch(url, { headers: { accept: "application/json", ...headers } });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
     return null;
   }
+}
+
+// TMDB issues two credential styles: a short v3 "API Key" (used as an
+// api_key query param) and a long v4 "API Read Access Token" (a JWT used as
+// a Bearer header). Users routinely paste the v4 token, so detect it and
+// authenticate the right way instead of silently returning no results.
+function isV4Token(key: string): boolean {
+  return key.startsWith("eyJ") || (key.includes(".") && key.length > 40);
+}
+function tmdbAuth(key: string): { query: string; headers?: Record<string, string> } {
+  return isV4Token(key)
+    ? { query: "", headers: { Authorization: `Bearer ${key}` } }
+    : { query: `api_key=${encodeURIComponent(key)}` };
 }
 
 interface TmdbSearchResponse {
@@ -126,9 +139,11 @@ interface TmdbDetail {
 }
 
 async function tmdbSearch(kind: MediaKind, title: string, year: number | null, key: string): Promise<number | null> {
-  const params = new URLSearchParams({ api_key: key, query: title, include_adult: "false" });
+  const auth = tmdbAuth(key);
+  const params = new URLSearchParams({ query: title, include_adult: "false" });
   if (year) params.set(kind === "movie" ? "primary_release_year" : "first_air_date_year", String(year));
-  const data = await fetchJson<TmdbSearchResponse>(`${TMDB}/search/${kind}?${params}`);
+  const qs = [auth.query, params.toString()].filter(Boolean).join("&");
+  const data = await fetchJson<TmdbSearchResponse>(`${TMDB}/search/${kind}?${qs}`, auth.headers);
   return data?.results?.[0]?.id ?? null;
 }
 
@@ -137,7 +152,9 @@ function img(path: string | null | undefined, size: string): string | null {
 }
 
 async function tmdbDetails(kind: MediaKind, id: number, key: string): Promise<NormalizedMetadata | null> {
-  const d = await fetchJson<TmdbDetail>(`${TMDB}/${kind}/${id}?api_key=${key}&append_to_response=credits`);
+  const auth = tmdbAuth(key);
+  const qs = [auth.query, "append_to_response=credits"].filter(Boolean).join("&");
+  const d = await fetchJson<TmdbDetail>(`${TMDB}/${kind}/${id}?${qs}`, auth.headers);
   if (!d) return null;
 
   const releaseDate: string | null = d.release_date || d.first_air_date || null;

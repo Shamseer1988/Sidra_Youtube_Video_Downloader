@@ -219,22 +219,27 @@ export function clampThumbSize(n: number): ThumbSize {
   return (THUMB_SIZES.find((s) => s === n) ?? DEFAULT_THUMB_SIZE) as ThumbSize;
 }
 
-function thumbCacheFile(itemId: string, size: number, atSec?: number): string {
+function thumbCacheFile(itemId: string, size: number, ext: "webp" | "jpg", atSec?: number): string {
   const suffix = atSec && atSec > 0 ? `_t${Math.floor(atSec)}` : "";
-  return path.join(config.thumbnailDir, `${itemId}_${size}${suffix}.webp`);
+  return path.join(config.thumbnailDir, `${itemId}_${size}${suffix}.${ext}`);
 }
 
-function runThumbnail(filePath: string, out: string, size: number, seek: string): Promise<boolean> {
+function cachedThumb(itemId: string, size: number, atSec?: number): string | null {
+  for (const ext of ["webp", "jpg"] as const) {
+    const p = thumbCacheFile(itemId, size, ext, atSec);
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).size > 0) return p;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function runThumbnail(filePath: string, out: string, size: number, seek: string, encoder: "libwebp" | "mjpeg"): Promise<boolean> {
   return new Promise((resolve) => {
-    const args = [
-      "-ss", seek,
-      "-i", filePath,
-      "-frames:v", "1",
-      "-vf", `scale=${size}:-2`,
-      "-c:v", "libwebp",
-      "-quality", "80",
-      "-y", out,
-    ];
+    const args = ["-y", "-ss", seek, "-i", filePath, "-frames:v", "1", "-vf", `scale=${size}:-2`, "-c:v", encoder];
+    if (encoder === "libwebp") args.push("-quality", "80");
+    else args.push("-q:v", "3");
+    args.push(out);
     const child = spawn(config.ffmpegPath, args, { stdio: "ignore" });
     child.on("error", () => resolve(false));
     child.on("close", (code) => {
@@ -248,10 +253,10 @@ function runThumbnail(filePath: string, out: string, size: number, seek: string)
 }
 
 /**
- * Generate (once, then cache) a WebP thumbnail for a video and return its
- * path. Seeks are tried from a representative frame down to 0s so short
- * clips (whose 5s mark is past the end) still produce an image instead of
- * silently failing. `atSec` requests a specific frame (hover previews).
+ * Generate (once, then cache) a thumbnail for a video and return its path.
+ * Seeks are tried from a representative frame down to 0s so short clips still
+ * produce an image; each seek tries WebP then JPEG so a build without the
+ * libwebp encoder still gets thumbnails. `atSec` requests a specific frame.
  */
 export async function ensureThumbnail(
   itemId: string,
@@ -259,10 +264,8 @@ export async function ensureThumbnail(
   opts?: { size?: number; durationSec?: number | null; atSec?: number },
 ): Promise<string | null> {
   const size = clampThumbSize(opts?.size ?? DEFAULT_THUMB_SIZE);
-  const out = thumbCacheFile(itemId, size, opts?.atSec);
-  try {
-    if (fs.existsSync(out) && fs.statSync(out).size > 0) return out;
-  } catch { /* regenerate */ }
+  const cached = cachedThumb(itemId, size, opts?.atSec);
+  if (cached) return cached;
 
   await fsp.mkdir(config.thumbnailDir, { recursive: true });
 
@@ -277,7 +280,10 @@ export async function ensureThumbnail(
   seeks.push("5", "1", "0");
 
   for (const seek of seeks) {
-    if (await runThumbnail(filePath, out, size, seek)) return out;
+    const webp = thumbCacheFile(itemId, size, "webp", opts?.atSec);
+    if (await runThumbnail(filePath, webp, size, seek, "libwebp")) return webp;
+    const jpg = thumbCacheFile(itemId, size, "jpg", opts?.atSec);
+    if (await runThumbnail(filePath, jpg, size, seek, "mjpeg")) return jpg;
   }
   return null;
 }

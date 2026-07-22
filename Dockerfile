@@ -41,6 +41,7 @@ EXPOSE 3000
 ENV DATABASE_URL="file:/data/app.db" \
     THUMBNAIL_CACHE_DIR="/data/thumbnails" \
     PHOTO_THUMBNAIL_CACHE_DIR="/data/photo-thumbnails" \
+    PHOTO_EDITS_DIR="/data/photo-edits" \
     DOWNLOAD_VIDEO_PATH="/downloads/videos" \
     DOWNLOAD_AUDIO_PATH="/downloads/audio" \
     MEDIA_VIDEO_PATH="/media/videos" \

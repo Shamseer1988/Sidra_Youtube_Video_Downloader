@@ -36,6 +36,8 @@ export const config = {
 
   thumbnailDir: abs(process.env.THUMBNAIL_CACHE_DIR || "./media/.thumbnails"),
   photoThumbnailDir: abs(process.env.PHOTO_THUMBNAIL_CACHE_DIR || "./media/.photo-thumbnails"),
+  // Writable store for non-destructive photo edits (originals are read-only).
+  photoEditsDir: abs(process.env.PHOTO_EDITS_DIR || "./media/.photo-edits"),
 
   ytdlpPath: process.env.YTDLP_PATH || "yt-dlp",
   ffmpegPath: process.env.FFMPEG_PATH || "ffmpeg",

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronRight, FolderPlus, ImagePlus, Loader2, Lock, MoreVertical, Pin, Heart, EyeOff, Trash2, Pencil, KeyRound,
+  ChevronRight, FolderPlus, ImagePlus, Loader2, Lock, MoreVertical, Pin, Heart, EyeOff, Trash2, Pencil, KeyRound, Play,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PhotoGrid } from "@/components/photos/photo-grid";
 import { PhotoLightbox } from "@/components/photos/photo-lightbox";
+import { SlideshowPlayer } from "@/components/photos/slideshow-player";
 import { AlbumCard } from "@/components/photos/album-card";
 import { CreateAlbumModal } from "@/components/photos/album-modals";
 import { PhotoPickerModal } from "@/components/photos/photo-picker-modal";
@@ -29,6 +30,7 @@ export default function AlbumDetailPage({ params }: { params: Promise<{ id: stri
   const [pw, setPw] = useState<string | null>(null);
   const [pwInput, setPwInput] = useState("");
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [slideshow, setSlideshow] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
   const [subAlbum, setSubAlbum] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -149,7 +151,16 @@ export default function AlbumDetailPage({ params }: { params: Promise<{ id: stri
         title={album.name}
         subtitle={`${album.photoCount} photo${album.photoCount === 1 ? "" : "s"}${album.childCount ? ` · ${album.childCount} sub-albums` : ""}`}
         actions={
-          album.isOwner ? (
+          <>
+            {photos.length > 0 && (
+              <button
+                onClick={() => setSlideshow(0)}
+                className="flex h-9 items-center gap-1.5 rounded-lg border border-stroke bg-surface-2/60 px-3 text-sm text-muted hover:text-foreground"
+              >
+                <Play className="h-4 w-4" /> Slideshow
+              </button>
+            )}
+            {album.isOwner && (
             <>
               <button
                 onClick={() => setSubAlbum(true)}
@@ -191,7 +202,8 @@ export default function AlbumDetailPage({ params }: { params: Promise<{ id: stri
                 )}
               </div>
             </>
-          ) : undefined
+            )}
+          </>
         }
       />
 
@@ -251,8 +263,13 @@ export default function AlbumDetailPage({ params }: { params: Promise<{ id: stri
           onClose={() => setLightbox(null)}
           onIndexChange={setLightbox}
           onRemove={album.isOwner ? removeFromAlbum : undefined}
+          onSlideshow={(i) => { setLightbox(null); setSlideshow(i); }}
           removeLabel="Remove from album"
         />
+      )}
+
+      {slideshow !== null && photos.length > 0 && (
+        <SlideshowPlayer photos={photos} startIndex={slideshow} onClose={() => setSlideshow(null)} />
       )}
 
       {picking && (

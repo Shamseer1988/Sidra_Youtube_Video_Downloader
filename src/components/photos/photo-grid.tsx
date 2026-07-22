@@ -1,7 +1,7 @@
 "use client";
 
-import { memo } from "react";
-import { Heart } from "lucide-react";
+import { memo, useState } from "react";
+import { Heart, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PhotoItem } from "@/lib/types";
 
@@ -53,22 +53,29 @@ export const PhotoGrid = memo(function PhotoGrid({
 });
 
 function Thumb({ photo, onClick }: { photo: PhotoItem; onClick: () => void }) {
+  const [failed, setFailed] = useState(false);
   return (
     <button
       onClick={onClick}
       className="group relative aspect-square overflow-hidden rounded-lg bg-surface-2"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`/api/photos/${photo.id}/thumbnail?size=400`}
-        alt={photo.filename}
-        loading="lazy"
-        decoding="async"
-        className={cn(
-          "h-full w-full object-cover transition-transform duration-300 group-hover:scale-105",
-        )}
-        onError={(e) => ((e.target as HTMLImageElement).style.visibility = "hidden")}
-      />
+      {failed ? (
+        <span className="flex h-full w-full items-center justify-center text-muted-2">
+          <ImageOff className="h-5 w-5" />
+        </span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/photos/${photo.id}/thumbnail?size=400`}
+          alt={photo.filename}
+          loading="lazy"
+          decoding="async"
+          className={cn(
+            "h-full w-full object-cover transition-transform duration-300 group-hover:scale-105",
+          )}
+          onError={() => setFailed(true)}
+        />
+      )}
       {photo.favorite && (
         <span className="absolute right-1.5 top-1.5 text-white drop-shadow">
           <Heart className="h-4 w-4 fill-current" />

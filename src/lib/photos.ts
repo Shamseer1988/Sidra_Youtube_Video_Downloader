@@ -39,10 +39,10 @@ export async function loadPhotoLibraries(): Promise<void> {
   }
 }
 
-/** Every directory the app may read photos from: roots + registered libs. */
+/** Every directory the app may read photos from: roots + registered libs + edits. */
 function allowedPhotoDirs(): string[] {
   if (!loaded) void loadPhotoLibraries();
-  return [...photoRoots(), ...cachedPhotoDirs];
+  return [...photoRoots(), ...cachedPhotoDirs, config.photoEditsDir].filter(Boolean);
 }
 
 /** Resolve a photo path, verifying it is still allowed and exists. */
@@ -254,31 +254,54 @@ export function clampPhotoThumb(n: number): PhotoThumbSize {
   return (PHOTO_THUMB_SIZES.find((s) => s === n) ?? DEFAULT_PHOTO_THUMB) as PhotoThumbSize;
 }
 
-function photoThumbFile(id: string, size: number): string {
-  return path.join(config.photoThumbnailDir, `${id}_${size}.webp`);
+function photoThumbFile(id: string, size: number, ext: "webp" | "jpg"): string {
+  return path.join(config.photoThumbnailDir, `${id}_${size}.${ext}`);
 }
 
-/** Generate (once, then cache) a WebP thumbnail for a photo. */
-export async function ensurePhotoThumbnail(id: string, filePath: string, size = DEFAULT_PHOTO_THUMB): Promise<string | null> {
-  const out = photoThumbFile(id, clampPhotoThumb(size));
-  try {
-    if (fs.existsSync(out) && fs.statSync(out).size > 0) return out;
-  } catch { /* regenerate */ }
-  await fsp.mkdir(config.photoThumbnailDir, { recursive: true });
+function cachedThumb(id: string, size: number): string | null {
+  for (const ext of ["webp", "jpg"] as const) {
+    const p = photoThumbFile(id, size, ext);
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).size > 0) return p;
+    } catch { /* ignore */ }
+  }
+  return null;
+}
 
+function runThumb(filePath: string, out: string, size: number, encoder: "libwebp" | "mjpeg"): Promise<boolean> {
   return new Promise((resolve) => {
-    // -noautorotate off (default applies EXIF orientation via autorotate).
-    const args = ["-i", filePath, "-vf", `scale=${size}:-1`, "-c:v", "libwebp", "-quality", "82", "-y", out];
+    const args = ["-y", "-i", filePath, "-frames:v", "1", "-vf", `scale=${size}:-2:flags=lanczos`, "-c:v", encoder];
+    if (encoder === "libwebp") args.push("-quality", "82");
+    else args.push("-q:v", "3");
+    args.push(out);
     const child = spawn(config.ffmpegPath, args, { stdio: "ignore" });
-    child.on("error", () => resolve(null));
+    child.on("error", () => resolve(false));
     child.on("close", (code) => {
       try {
-        resolve(code === 0 && fs.existsSync(out) && fs.statSync(out).size > 0 ? out : null);
+        resolve(code === 0 && fs.existsSync(out) && fs.statSync(out).size > 0);
       } catch {
-        resolve(null);
+        resolve(false);
       }
     });
   });
+}
+
+/**
+ * Generate (once, then cache) a thumbnail for a photo. Tries WebP first, then
+ * falls back to JPEG — so libraries still get thumbnails even if this ffmpeg
+ * build lacks the libwebp encoder.
+ */
+export async function ensurePhotoThumbnail(id: string, filePath: string, size = DEFAULT_PHOTO_THUMB): Promise<string | null> {
+  const s = clampPhotoThumb(size);
+  const cached = cachedThumb(id, s);
+  if (cached) return cached;
+
+  await fsp.mkdir(config.photoThumbnailDir, { recursive: true });
+  const webp = photoThumbFile(id, s, "webp");
+  if (await runThumb(filePath, webp, s, "libwebp")) return webp;
+  const jpg = photoThumbFile(id, s, "jpg");
+  if (await runThumb(filePath, jpg, s, "mjpeg")) return jpg;
+  return null;
 }
 
 // Bounded background thumbnail queue.
@@ -456,6 +479,55 @@ type PhotoRow = { path: string; thumbnail: string | null; size: bigint } & Recor
 export function photoDTO(p: PhotoRow) {
   const { path: _path, thumbnail, ...rest } = p;
   return { ...rest, size: Number(p.size), hasThumbnail: !!thumbnail };
+}
+
+/**
+ * Save an edited image as a NEW photo (non-destructive — the original is
+ * never modified). The copy lands in the writable edits dir, links back to
+ * the source via originalId, and inherits its capture time so it sits beside
+ * the original in the timeline.
+ */
+export async function saveEditedPhoto(
+  originalId: string,
+  buffer: Buffer,
+  opts: { ext: string; width?: number; height?: number },
+): Promise<ReturnType<typeof photoDTO> | null> {
+  const original = await prisma.photo.findUnique({ where: { id: originalId } });
+  if (!original) return null;
+
+  await fsp.mkdir(config.photoEditsDir, { recursive: true });
+  const ext = opts.ext.replace(/^\./, "").toLowerCase() || "jpg";
+  const base = path.basename(original.filename, path.extname(original.filename));
+  const filename = `${base}-edited-${Date.now()}.${ext}`;
+  const filePath = path.join(config.photoEditsDir, filename);
+  await fsp.writeFile(filePath, buffer);
+
+  const taken = original.takenAt ?? new Date();
+  const created = await prisma.photo.create({
+    data: {
+      path: filePath,
+      libraryId: null,
+      folder: "Edited",
+      filename,
+      ext,
+      size: BigInt(buffer.length),
+      width: opts.width ?? null,
+      height: opts.height ?? null,
+      takenAt: taken,
+      takenYear: taken.getFullYear(),
+      takenMonth: taken.getMonth() + 1,
+      takenDay: taken.getDate(),
+      mtime: new Date(),
+      camera: original.camera,
+      lens: original.lens,
+      gpsLat: original.gpsLat,
+      gpsLng: original.gpsLng,
+      originalId,
+      edited: true,
+    },
+  });
+  queuePhotoThumbnail(created.id, filePath);
+  return photoDTO(created);
 }
 
 export function photoContentType(file: string): string {
