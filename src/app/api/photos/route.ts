@@ -22,6 +22,7 @@ export const GET = withAuth(async (req) => {
     day: p.get("day") ? Number(p.get("day")) : undefined,
     camera: p.get("camera") || undefined,
     ext: p.get("ext") || undefined,
+    folder: p.has("folder") ? p.get("folder") ?? "" : undefined,
   });
 
   const rows = await prisma.photo.findMany({

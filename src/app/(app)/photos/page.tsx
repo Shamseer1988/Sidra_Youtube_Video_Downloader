@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Heart, Images, LayoutGrid, Loader2, Map as MapIcon, Play, RefreshCw, Search, Sparkles, X } from "lucide-react";
+import { CalendarDays, Folder, Heart, Images, LayoutGrid, Loader2, Map as MapIcon, Play, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PhotoGrid } from "@/components/photos/photo-grid";
 import { PhotoMasonry } from "@/components/photos/photo-masonry";
 import { PhotoCalendar } from "@/components/photos/photo-calendar";
 import { PhotoMap } from "@/components/photos/photo-map";
+import { PhotoFolders } from "@/components/photos/photo-folders";
 import { PhotoLightbox } from "@/components/photos/photo-lightbox";
 import { SlideshowPlayer } from "@/components/photos/slideshow-player";
 import { PhotoEditor } from "@/components/photos/photo-editor";
@@ -24,7 +25,7 @@ export default function PhotosPage() {
   const user = useUser();
   const toast = useToast();
   const qc = useQueryClient();
-  const [view, setView] = useState<"timeline" | "masonry" | "calendar" | "map">("timeline");
+  const [view, setView] = useState<"timeline" | "masonry" | "calendar" | "map" | "folder">("timeline");
   const [favOnly, setFavOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -37,7 +38,7 @@ export default function PhotosPage() {
   // Honor a ?view= param (e.g. linked from the dashboard's map stat).
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("view");
-    if (v === "masonry" || v === "calendar" || v === "map" || v === "timeline") setView(v);
+    if (v === "masonry" || v === "calendar" || v === "map" || v === "timeline" || v === "folder") setView(v);
   }, []);
 
   // Debounce the search input so we don't refetch on every keystroke.
@@ -160,6 +161,7 @@ export default function PhotosPage() {
           { v: "masonry", label: "Masonry", icon: LayoutGrid },
           { v: "calendar", label: "Calendar", icon: CalendarDays },
           { v: "map", label: "Map", icon: MapIcon },
+          { v: "folder", label: "Folders", icon: Folder },
         ] as const).map((opt) => {
           const Icon = opt.icon;
           return (
@@ -183,6 +185,8 @@ export default function PhotosPage() {
         <PhotoCalendar />
       ) : view === "map" ? (
         <PhotoMap />
+      ) : view === "folder" ? (
+        <PhotoFolders />
       ) : (
         <>
           {/* Search bar (timeline / masonry) */}
