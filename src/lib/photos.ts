@@ -92,8 +92,16 @@ export async function addPhotoLibrary(input: { name: string; folderPath: string 
   }
   try {
     if (!fs.statSync(resolved).isDirectory()) return { ok: false, message: "Path is not a directory" };
-  } catch {
-    return { ok: false, message: "Folder not found inside the container" };
+    await fsp.readdir(resolved); // ensure the container user can actually list it
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "EACCES" || code === "EPERM") {
+      return {
+        ok: false,
+        message: "Permission denied — the container user can't read this folder. Grant it read access to the share on your NAS (Synology's 'photo' share is restricted by default).",
+      };
+    }
+    return { ok: false, message: "Folder not found inside the container — is it mounted?" };
   }
   const name = input.name?.trim() || path.basename(resolved);
   try {
@@ -115,30 +123,57 @@ export async function removePhotoLibrary(id: string): Promise<{ ok: boolean; mes
   }
 }
 
+export interface PhotoBrowseEntry {
+  name: string;
+  path: string;
+  readable?: boolean;
+}
+
 export interface PhotoBrowseResult {
   ok: boolean;
   message?: string;
   cwd: string | null;
   parent: string | null;
   atRoot: boolean;
-  dirs: { name: string; path: string }[];
+  dirs: PhotoBrowseEntry[];
 }
 
 /** List subdirectories for the photo-library picker (within photo roots). */
 export async function browsePhotos(dir?: string): Promise<PhotoBrowseResult> {
   const roots = photoRoots();
   if (!dir) {
-    return { ok: true, cwd: null, parent: null, atRoot: true, dirs: roots.map((p) => ({ name: p, path: p })) };
+    if (roots.length === 0) {
+      return {
+        ok: false,
+        message: "No photo volume is mounted. Set MEDIA_PHOTO_PATH and mount a folder to it.",
+        cwd: null,
+        parent: null,
+        atRoot: true,
+        dirs: [],
+      };
+    }
+    // Flag which roots are actually readable so the picker can warn early.
+    const dirs: PhotoBrowseEntry[] = [];
+    for (const p of roots) dirs.push({ name: p, path: p, readable: await isReadableDir(p) });
+    return { ok: true, cwd: null, parent: null, atRoot: true, dirs };
   }
   const resolved = path.resolve(dir);
   if (!isInsidePhotoRoots(resolved)) {
-    return { ok: false, message: "Outside allowed roots", cwd: null, parent: null, atRoot: true, dirs: [] };
+    return { ok: false, message: "That folder is outside the mounted photo volume.", cwd: null, parent: null, atRoot: true, dirs: [] };
   }
   let entries: fs.Dirent[];
   try {
     entries = await fsp.readdir(resolved, { withFileTypes: true });
   } catch {
-    return { ok: false, message: "Cannot read folder", cwd: null, parent: null, atRoot: true, dirs: [] };
+    return {
+      ok: false,
+      message:
+        "Permission denied reading this folder. The container user (PUID/PGID) can't list it — grant that user read access to the share on your NAS (Synology's 'photo' share is locked down by default).",
+      cwd: null,
+      parent: null,
+      atRoot: true,
+      dirs: [],
+    };
   }
   const isRoot = roots.some((r) => path.resolve(r) === resolved);
   return {
@@ -309,6 +344,21 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
   let added = 0;
 
   try {
+    // Backfill derived date parts for photos indexed before these columns
+    // existed (bounded per pass so a huge library catches up gradually).
+    const stale = await prisma.photo.findMany({
+      where: { takenYear: null, NOT: { takenAt: null } },
+      select: { id: true, takenAt: true },
+      take: 5000,
+    });
+    for (const p of stale) {
+      if (!p.takenAt) continue;
+      const d = p.takenAt;
+      await prisma.photo
+        .update({ where: { id: p.id }, data: { takenYear: d.getFullYear(), takenMonth: d.getMonth() + 1, takenDay: d.getDate() } })
+        .catch(() => {});
+    }
+
     const libraries = await prisma.photoLibrary.findMany();
     const seen = new Set<string>();
     const healthyRoots: string[] = [];
@@ -345,6 +395,7 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
         }
 
         const meta = await readExif(file);
+        const taken = meta.takenAt ?? mtime;
         const created = await prisma.photo.create({
           data: {
             path: file,
@@ -355,7 +406,10 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
             size: BigInt(stat.size),
             width: meta.width ?? null,
             height: meta.height ?? null,
-            takenAt: meta.takenAt ?? mtime,
+            takenAt: taken,
+            takenYear: taken.getFullYear(),
+            takenMonth: taken.getMonth() + 1,
+            takenDay: taken.getDate(),
             mtime,
             camera: meta.camera ?? null,
             lens: meta.lens ?? null,

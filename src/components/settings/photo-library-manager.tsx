@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FolderOpen, FolderPlus, Images, Loader2, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { apiSend } from "@/lib/client-api";
 import { usePhotoLibraries } from "@/hooks/use-photos";
 import type { PhotoLibrarySummary } from "@/lib/types";
@@ -107,15 +106,22 @@ export function PhotoLibraryManager({ isAdmin }: { isAdmin: boolean }) {
         <div className="mt-4 rounded-2xl border border-stroke bg-surface-2/60 p-4">
           <p className="mb-3 text-sm font-medium text-foreground">Add a photo folder</p>
           <div className="flex flex-col gap-2.5 sm:flex-row">
-            <button
-              onClick={() => setPickerOpen(true)}
-              className="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-stroke bg-surface px-3 text-left transition-colors hover:border-primary/40"
-            >
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-stroke bg-surface px-2 focus-within:border-primary/40">
               <FolderOpen className="h-4 w-4 shrink-0 text-muted-2" />
-              <span className={cn("min-w-0 flex-1 truncate font-mono text-xs", folderPath ? "text-foreground" : "text-muted-2")}>
-                {folderPath || "Browse mounted photo volumes…"}
-              </span>
-            </button>
+              <input
+                value={folderPath}
+                onChange={(e) => setFolderPath(e.target.value)}
+                placeholder="/media/photos"
+                aria-label="Photo folder path"
+                className="h-10 min-w-0 flex-1 bg-transparent font-mono text-xs text-foreground placeholder:text-muted-2 focus:outline-none"
+              />
+              <button
+                onClick={() => setPickerOpen(true)}
+                className="shrink-0 rounded-lg px-2 py-1 text-xs text-primary hover:bg-primary/10"
+              >
+                Browse
+              </button>
+            </div>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -123,10 +129,14 @@ export function PhotoLibraryManager({ isAdmin }: { isAdmin: boolean }) {
               aria-label="Library name"
               className="h-10 rounded-xl border border-stroke bg-surface px-3.5 text-sm text-foreground placeholder:text-muted-2 focus:border-primary/50 sm:w-48"
             />
-            <Button disabled={!folderPath} isLoading={addMutation.isPending} onClick={() => addMutation.mutate()}>
+            <Button disabled={!folderPath.trim()} isLoading={addMutation.isPending} onClick={() => addMutation.mutate()}>
               {!addMutation.isPending && <FolderPlus className="h-4 w-4" />} Add
             </Button>
           </div>
+          <p className="mt-2 text-[11px] text-muted-2">
+            Type the in-container path (e.g. <code className="text-foreground">/media/photos</code>) or Browse. If browsing
+            shows “permission denied”, grant the container user read access to that share on your NAS.
+          </p>
           {scanMutation.isPending && (
             <p className="mt-3 flex items-center gap-2 text-xs text-muted">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Indexing photos…

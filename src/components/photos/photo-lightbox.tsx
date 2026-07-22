@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Download, Heart, Info, RotateCw, X, ZoomIn, ZoomOut, MapPin,
+  ChevronLeft, ChevronRight, Download, FolderPlus, Heart, Info, RotateCw, Trash2, X, ZoomIn, ZoomOut, MapPin,
 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { apiSend } from "@/lib/client-api";
@@ -15,12 +15,18 @@ export function PhotoLightbox({
   onClose,
   onIndexChange,
   onFavoriteChange,
+  onAddToAlbum,
+  onRemove,
+  removeLabel = "Remove",
 }: {
   photos: PhotoItem[];
   index: number;
   onClose: () => void;
   onIndexChange: (next: number) => void;
   onFavoriteChange?: (id: string, favorite: boolean) => void;
+  onAddToAlbum?: (photoId: string) => void;
+  onRemove?: (photoId: string) => void;
+  removeLabel?: string;
 }) {
   const photo = photos[index];
   const [zoom, setZoom] = useState(1);
@@ -94,6 +100,16 @@ export function PhotoLightbox({
             <IconBtn label="Favorite" onClick={toggleFav} active={fav}>
               <Heart className={cn("h-5 w-5", fav && "fill-current")} />
             </IconBtn>
+            {onAddToAlbum && (
+              <IconBtn label="Add to album" onClick={() => onAddToAlbum(photo.id)}>
+                <FolderPlus className="h-5 w-5" />
+              </IconBtn>
+            )}
+            {onRemove && (
+              <IconBtn label={removeLabel} onClick={() => onRemove(photo.id)}>
+                <Trash2 className="h-5 w-5" />
+              </IconBtn>
+            )}
             <a
               href={`/api/photos/${photo.id}/full?download=1`}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
