@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Heart, Images, LayoutGrid, Loader2, Map as MapIcon, RefreshCw, Search, X } from "lucide-react";
+import { CalendarDays, Heart, Images, LayoutGrid, Loader2, Map as MapIcon, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PhotoGrid } from "@/components/photos/photo-grid";
 import { PhotoMasonry } from "@/components/photos/photo-masonry";
@@ -29,6 +29,12 @@ export default function PhotosPage() {
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [addToAlbum, setAddToAlbum] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+
+  // Honor a ?view= param (e.g. linked from the dashboard's map stat).
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("view");
+    if (v === "masonry" || v === "calendar" || v === "map" || v === "timeline") setView(v);
+  }, []);
 
   // Debounce the search input so we don't refetch on every keystroke.
   useEffect(() => {
@@ -99,6 +105,12 @@ export default function PhotosPage() {
         subtitle={photos.length ? `${photos.length.toLocaleString()} loaded` : "Your photo library"}
         actions={
           <>
+            <Link
+              href="/photos/dashboard"
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-stroke bg-surface-2/60 px-3 text-sm text-muted hover:text-foreground"
+            >
+              <Sparkles className="h-4 w-4" /> Overview
+            </Link>
             <Link
               href="/photos/albums"
               className="flex h-9 items-center gap-1.5 rounded-lg border border-stroke bg-surface-2/60 px-3 text-sm text-muted hover:text-foreground"

@@ -50,6 +50,28 @@ export function usePhotoLibraries() {
   });
 }
 
+export interface PhotoDashboard {
+  stats: {
+    totalPhotos: number;
+    totalSize: number;
+    geotagged: number;
+    cameras: number;
+    albums: number;
+    years: number;
+  };
+  recent: PhotoItem[];
+  memories: { year: number; photos: PhotoItem[] }[];
+  albums: AlbumSummary[];
+  byYear: { year: number; count: number }[];
+}
+
+export function usePhotoDashboard() {
+  return useQuery({
+    queryKey: ["photo-dashboard"],
+    queryFn: () => apiGet<PhotoDashboard>("/api/photos/dashboard"),
+  });
+}
+
 export interface CalendarFacets {
   years: number[];
   year: number;
