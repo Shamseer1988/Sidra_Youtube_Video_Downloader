@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { Heart, Images, Loader2, RefreshCw } from "lucide-react";
+import { Heart, Images, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PhotoGrid } from "@/components/photos/photo-grid";
 import { PhotoLightbox } from "@/components/photos/photo-lightbox";
@@ -20,9 +20,17 @@ export default function PhotosPage() {
   const toast = useToast();
   const qc = useQueryClient();
   const [favOnly, setFavOnly] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [addToAlbum, setAddToAlbum] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+
+  // Debounce the search input so we don't refetch on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const { data: libraries = [] } = usePhotoLibraries();
   const {
@@ -31,7 +39,7 @@ export default function PhotosPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = usePhotos({ favorite: favOnly || undefined });
+  } = usePhotos({ favorite: favOnly || undefined, q: debounced || undefined });
 
   const photos: PhotoItem[] = useMemo(
     () => (data?.pages ?? []).flatMap((p) => p.photos),
@@ -65,7 +73,7 @@ export default function PhotosPage() {
   }
 
   const patchFavorite = (id: string, favorite: boolean) => {
-    qc.setQueryData<typeof data>(["photos", favOnly ? "favorite=1" : ""], (prev) =>
+    qc.setQueriesData<typeof data>({ queryKey: ["photos"] }, (prev) =>
       prev
         ? {
             ...prev,
@@ -117,12 +125,40 @@ export default function PhotosPage() {
         }
       />
 
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-2" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search — try “beach 2024”, “favorites”, “Canon”, “june geotagged”…"
+          className="h-11 w-full rounded-xl border border-stroke bg-surface-2/60 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-2 focus:border-primary/50 focus:outline-none"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-2 hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-24">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       ) : photos.length === 0 ? (
-        <EmptyState noLibraries={noLibraries} isAdmin={user.role === "admin"} />
+        debounced ? (
+          <div className="glass-card flex flex-col items-center py-20 text-center">
+            <Search className="mb-3 h-9 w-9 text-muted-2" />
+            <p className="text-base font-semibold text-foreground">No matches for “{debounced}”</p>
+            <p className="mt-1 text-sm text-muted">Try a year, camera, file type, or a word from the filename.</p>
+          </div>
+        ) : (
+          <EmptyState noLibraries={noLibraries} isAdmin={user.role === "admin"} />
+        )
       ) : (
         <>
           <PhotoGrid photos={photos} onOpen={setLightbox} />

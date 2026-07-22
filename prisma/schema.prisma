@@ -218,6 +218,9 @@ model Photo {
   width       Int?
   height      Int?
   takenAt     DateTime?     // EXIF DateTimeOriginal, else file mtime
+  takenYear   Int?          // derived from takenAt (fast date filtering)
+  takenMonth  Int?          // 1–12
+  takenDay    Int?          // 1–31
   mtime       DateTime      // file modified time on disk
   camera      String?       // make + model
   lens        String?
@@ -237,6 +240,8 @@ model Photo {
   albumPhotos AlbumPhoto[]
 
   @@index([takenAt])
+  @@index([takenYear])
+  @@index([takenMonth])
   @@index([libraryId])
   @@index([folder])
   @@index([favorite])

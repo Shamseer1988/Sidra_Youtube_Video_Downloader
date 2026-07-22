@@ -13,6 +13,10 @@ export interface PhotoQuery {
   libraryId?: string;
   favorite?: boolean;
   scope?: "archive" | "all";
+  q?: string;
+  year?: number;
+  month?: number;
+  ext?: string;
 }
 
 export function usePhotos(params: PhotoQuery = {}) {
@@ -20,6 +24,10 @@ export function usePhotos(params: PhotoQuery = {}) {
   if (params.libraryId) base.set("libraryId", params.libraryId);
   if (params.favorite) base.set("favorite", "1");
   if (params.scope) base.set("scope", params.scope);
+  if (params.q?.trim()) base.set("q", params.q.trim());
+  if (params.year) base.set("year", String(params.year));
+  if (params.month) base.set("month", String(params.month));
+  if (params.ext) base.set("ext", params.ext);
 
   return useInfiniteQuery({
     queryKey: ["photos", base.toString()],

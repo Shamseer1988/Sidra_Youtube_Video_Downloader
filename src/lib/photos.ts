@@ -309,6 +309,21 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
   let added = 0;
 
   try {
+    // Backfill derived date parts for photos indexed before these columns
+    // existed (bounded per pass so a huge library catches up gradually).
+    const stale = await prisma.photo.findMany({
+      where: { takenYear: null, NOT: { takenAt: null } },
+      select: { id: true, takenAt: true },
+      take: 5000,
+    });
+    for (const p of stale) {
+      if (!p.takenAt) continue;
+      const d = p.takenAt;
+      await prisma.photo
+        .update({ where: { id: p.id }, data: { takenYear: d.getFullYear(), takenMonth: d.getMonth() + 1, takenDay: d.getDate() } })
+        .catch(() => {});
+    }
+
     const libraries = await prisma.photoLibrary.findMany();
     const seen = new Set<string>();
     const healthyRoots: string[] = [];
@@ -345,6 +360,7 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
         }
 
         const meta = await readExif(file);
+        const taken = meta.takenAt ?? mtime;
         const created = await prisma.photo.create({
           data: {
             path: file,
@@ -355,7 +371,10 @@ export async function scanPhotos(): Promise<{ scanned: number; added: number; re
             size: BigInt(stat.size),
             width: meta.width ?? null,
             height: meta.height ?? null,
-            takenAt: meta.takenAt ?? mtime,
+            takenAt: taken,
+            takenYear: taken.getFullYear(),
+            takenMonth: taken.getMonth() + 1,
+            takenDay: taken.getDate(),
             mtime,
             camera: meta.camera ?? null,
             lens: meta.lens ?? null,
