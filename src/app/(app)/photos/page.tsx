@@ -7,6 +7,7 @@ import { Heart, Images, Loader2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { PhotoGrid } from "@/components/photos/photo-grid";
 import { PhotoLightbox } from "@/components/photos/photo-lightbox";
+import { AddToAlbumModal } from "@/components/photos/album-modals";
 import { usePhotos, usePhotoLibraries } from "@/hooks/use-photos";
 import { apiSend } from "@/lib/client-api";
 import { useUser } from "@/components/providers/user-provider";
@@ -20,6 +21,7 @@ export default function PhotosPage() {
   const qc = useQueryClient();
   const [favOnly, setFavOnly] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [addToAlbum, setAddToAlbum] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
 
   const { data: libraries = [] } = usePhotoLibraries();
@@ -85,6 +87,12 @@ export default function PhotosPage() {
         subtitle={photos.length ? `${photos.length.toLocaleString()} loaded` : "Your photo library"}
         actions={
           <>
+            <Link
+              href="/photos/albums"
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-stroke bg-surface-2/60 px-3 text-sm text-muted hover:text-foreground"
+            >
+              <Images className="h-4 w-4" /> Albums
+            </Link>
             <button
               onClick={() => setFavOnly((f) => !f)}
               className={cn(
@@ -134,8 +142,11 @@ export default function PhotosPage() {
           onClose={() => setLightbox(null)}
           onIndexChange={setLightbox}
           onFavoriteChange={patchFavorite}
+          onAddToAlbum={(photoId) => setAddToAlbum(photoId)}
         />
       )}
+
+      {addToAlbum && <AddToAlbumModal photoIds={[addToAlbum]} onClose={() => setAddToAlbum(null)} />}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/client-api";
-import type { PhotoItem, PhotoLibrarySummary } from "@/lib/types";
+import type { AlbumDetail, AlbumSummary, PhotoItem, PhotoLibrarySummary } from "@/lib/types";
 
 interface PhotoPage {
   photos: PhotoItem[];
@@ -37,5 +37,35 @@ export function usePhotoLibraries() {
   return useQuery({
     queryKey: ["photo-libraries"],
     queryFn: () => apiGet<PhotoLibrarySummary[]>("/api/photo-libraries"),
+  });
+}
+
+export function useAlbums(parentId: string | null = null) {
+  return useQuery({
+    queryKey: ["albums", parentId ?? "root"],
+    queryFn: () =>
+      apiGet<AlbumSummary[]>(`/api/albums${parentId ? `?parentId=${parentId}` : ""}`),
+  });
+}
+
+export function useAlbum(id: string) {
+  return useQuery({
+    queryKey: ["album", id],
+    queryFn: () => apiGet<AlbumDetail>(`/api/albums/${id}`),
+  });
+}
+
+export function useAlbumPhotos(id: string, pw: string | null, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: ["album-photos", id, pw ? "pw" : "open"],
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const qs = new URLSearchParams();
+      if (pageParam) qs.set("cursor", pageParam);
+      if (pw) qs.set("pw", pw);
+      return apiGet<PhotoPage>(`/api/albums/${id}/photos?${qs.toString()}`);
+    },
+    getNextPageParam: (last) => last.nextCursor,
   });
 }

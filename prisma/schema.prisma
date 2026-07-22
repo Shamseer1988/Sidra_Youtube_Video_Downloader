@@ -25,6 +25,7 @@ model User {
   downloads  Download[]
   states     UserMediaState[]
   playlists  Playlist[]
+  albums     Album[]
 }
 
 // A download job (yt-dlp). Progress is tracked in-process and mirrored here.
@@ -233,8 +234,48 @@ model Photo {
   rating      Int           @default(0)
   createdAt   DateTime      @default(now())
 
+  albumPhotos AlbumPhoto[]
+
   @@index([takenAt])
   @@index([libraryId])
   @@index([folder])
   @@index([favorite])
+}
+
+// A photo album. Supports nesting (parentId), owner-only private albums,
+// soft password protection, and favorite/pinned flags.
+model Album {
+  id           String   @id @default(cuid())
+  ownerId      String
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  parentId     String?
+  parent       Album?   @relation("AlbumChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Album[]  @relation("AlbumChildren")
+  coverPhotoId String?
+  isPrivate    Boolean  @default(false)
+  passwordHash String?
+  favorite     Boolean  @default(false)
+  pinned       Boolean  @default(false)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  photos       AlbumPhoto[]
+
+  @@index([ownerId])
+  @@index([parentId])
+}
+
+model AlbumPhoto {
+  id       String   @id @default(cuid())
+  albumId  String
+  album    Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  photoId  String
+  photo    Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  addedAt  DateTime @default(now())
+
+  @@unique([albumId, photoId])
+  @@index([albumId])
+  @@index([photoId])
 }

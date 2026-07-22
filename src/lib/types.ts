@@ -85,6 +85,25 @@ export interface PhotoLibrarySummary {
   photoCount: number;
 }
 
+export interface AlbumSummary {
+  id: string;
+  name: string;
+  parentId: string | null;
+  ownerId: string;
+  coverPhotoId: string | null;
+  isPrivate: boolean;
+  locked: boolean;
+  favorite: boolean;
+  pinned: boolean;
+  photoCount: number;
+  childCount: number;
+  isOwner: boolean;
+}
+
+export interface AlbumDetail extends AlbumSummary {
+  breadcrumb: { id: string; name: string }[];
+}
+
 export interface LibraryItem {
   id: string;
   title: string;
