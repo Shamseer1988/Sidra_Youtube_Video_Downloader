@@ -349,6 +349,9 @@ async function scanTargets(): Promise<ScanTarget[]> {
   return t;
 }
 
+// NAS metadata/recycle folders that must never be indexed.
+const SKIP_DIRS = new Set(["@eaDir", "#recycle", "#snapshot", "@tmp", "@sharebin"]);
+
 async function* walk(dir: string): AsyncGenerator<string> {
   let entries: fs.Dirent[];
   try {
@@ -357,7 +360,7 @@ async function* walk(dir: string): AsyncGenerator<string> {
     return;
   }
   for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue;
+    if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       yield* walk(full);
