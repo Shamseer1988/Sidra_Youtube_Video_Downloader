@@ -35,8 +35,9 @@ export const GET = withAuth(async (_req, user) => {
 
 const patchSchema = z.object({
   hwAccel: z.enum(["off", "auto", "nvenc", "vaapi", "qsv"]).optional(),
-  tmdbKey: z.string().max(200).optional(),
-  omdbKey: z.string().max(200).optional(),
+  // A TMDB v4 "Read Access Token" is a ~220-char JWT, so allow long keys.
+  tmdbKey: z.string().max(2000).optional(),
+  omdbKey: z.string().max(2000).optional(),
 });
 
 // Admin: update playback settings (hardware acceleration) and metadata keys.

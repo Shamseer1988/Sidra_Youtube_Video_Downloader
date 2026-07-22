@@ -48,8 +48,9 @@ export function PhotoLibraryManager({ isAdmin }: { isAdmin: boolean }) {
       toast("Photo folder removed", "success");
       qc.invalidateQueries({ queryKey: ["photo-libraries"] });
       qc.invalidateQueries({ queryKey: ["photos"] });
+      qc.invalidateQueries({ queryKey: ["photo-folders"] });
     },
-    onError: () => toast("Could not remove", "error"),
+    onError: (err: Error) => toast(err.message || "Could not remove", "error"),
   });
 
   return (
